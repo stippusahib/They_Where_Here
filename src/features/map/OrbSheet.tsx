@@ -7,6 +7,7 @@
 import { X, LockKey, Sparkle, Flag, Footprints, SpeakerHigh } from '@phosphor-icons/react';
 import { RarityTag } from '@/ui/components/RarityTag';
 import { useAppStore } from '@/state/store';
+import { POKEMON_GO_TOUCH_RADIUS_METERS } from '@/contracts/types';
 import { formatDistance } from '@/lib/geo';
 import type { ExtendedNote } from '@/lib/seedNotes';
 
@@ -22,7 +23,7 @@ export function OrbSheet({ note, distanceMeters, onClose, onOpenNote }: OrbSheet
 
   if (!note) return null;
 
-  const isWithinReach = distanceMeters <= 60 || isSimulated;
+  const isWithinReach = distanceMeters <= POKEMON_GO_TOUCH_RADIUS_METERS || isSimulated;
   const totalVotes = note.worth_yes + note.worth_no;
   const worthPercent =
     totalVotes >= 5

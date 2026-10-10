@@ -29,7 +29,7 @@ import {
 import { useAppStore } from '@/state/store';
 import { haversineDistance, bearing, formatDistance, toCardinal } from '@/lib/geo';
 import type { ExtendedNote } from '@/lib/seedNotes';
-import { APP_NAME } from '@/contracts/types';
+import { APP_NAME, POKEMON_GO_TOUCH_RADIUS_METERS } from '@/contracts/types';
 import { AppLogo } from '@/ui/components/AppLogo';
 import { VoiceNotePlayer } from '@/ui/components/VoiceNotePlayer';
 
@@ -95,6 +95,13 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showAccuracyDialog, setShowAccuracyDialog] = useState(false);
 
+  // 3D Gyroscope and Compass orientation refs for buttery-smooth 60fps spatial anchoring
+  const devicePitchRef = useRef<number>(78);
+  const deviceHeadingRef = useRef<number>(0);
+  const currentHeadingRef = useRef<number>(0);
+  const currentPitchRef = useRef<number>(78);
+  const targetBearingRef = useRef<number>(0);
+
   // ── 1. REAL-TIME ACCURACY TIER ASSESSMENT ──────────────────────
   const accuracyMeters = position?.accuracy ?? 15;
   const accuracyTier: 'high' | 'moderate' | 'low' =
@@ -128,6 +135,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
   const targetNote = currentTarget ? currentTarget.note : null;
   const distanceToTarget = currentTarget ? currentTarget.dist : null;
   const targetBearing = currentTarget ? currentTarget.bear : 0;
+  targetBearingRef.current = targetBearing;
   const targetWalkingMinutes = currentTarget ? currentTarget.walkingMinutes : 1;
   const isBeyond5Min = currentTarget ? !currentTarget.isWithin5Min : false;
 
@@ -144,7 +152,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     targetNote && passportNotes.some((pn) => pn.id === targetNote.id)
   );
   const isMysteryLocked = !isMine && !isUnlocked;
-  const isHere = distanceToTarget !== null && (distanceToTarget <= 60 || isSimulated);
+  const isHere = distanceToTarget !== null && (distanceToTarget <= POKEMON_GO_TOUCH_RADIUS_METERS || isSimulated);
 
   // Strict interaction rule: CAN ONLY READ OR TOUCH IF WITHIN 5 MIN & WITHIN UNLOCK REACH
   const canTouchOrRead = Boolean(targetNote && !isBeyond5Min && isHere);
@@ -173,9 +181,18 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     const handleOrientation = (e: DeviceOrientationEvent) => {
       const anyEvent = e as unknown as { webkitCompassHeading?: number };
       if (typeof anyEvent.webkitCompassHeading === 'number') {
-        setDeviceHeading(anyEvent.webkitCompassHeading);
+        const h = anyEvent.webkitCompassHeading;
+        deviceHeadingRef.current = h;
+        setDeviceHeading(h);
       } else if (e.alpha !== null) {
-        setDeviceHeading(360 - e.alpha);
+        const h = (360 - e.alpha) % 360;
+        deviceHeadingRef.current = h;
+        setDeviceHeading(h);
+      }
+
+      if (typeof e.beta === 'number') {
+        // e.beta represents pitch: ~75° to 90° when holding phone upright in hand
+        devicePitchRef.current = THREE.MathUtils.clamp(e.beta, 10, 150);
       }
     };
 
@@ -395,10 +412,29 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       ringMesh.scale.set(ringScale, ringScale, ringScale);
       ringMat.opacity = Math.max(0, 0.8 - (time % 2.0) * 0.4);
 
-      // Position noteGroup horizontally based on bearing difference
-      const clampedBearingDiff = THREE.MathUtils.clamp(bearingDiff, -90, 90);
-      const targetX = (clampedBearingDiff / 90) * 3.6;
-      noteGroup.position.x = THREE.MathUtils.lerp(noteGroup.position.x, targetX, 0.1);
+      // ── Real Physical 3D World Space Placement ──
+      // Smoothly track device heading and pitch without rebuilding WebGL scene
+      const targetH = deviceHeadingRef.current;
+      const targetP = devicePitchRef.current;
+
+      // Smallest angle diff for shortest turn lerp:
+      const headingDiffToSmooth = ((targetH - currentHeadingRef.current + 540) % 360) - 180;
+      currentHeadingRef.current += headingDiffToSmooth * 0.15;
+      currentPitchRef.current = THREE.MathUtils.lerp(currentPitchRef.current, targetP, 0.15);
+
+      // Bearing difference between note physical coordinate and user view direction (-180 to +180)
+      const diffAzimuth = ((targetBearingRef.current - currentHeadingRef.current + 540) % 360) - 180;
+      const radH = (diffAzimuth * Math.PI) / 180;
+
+      // Pitch difference relative to eye level (~78 degrees when holding phone upright)
+      const diffElevation = currentPitchRef.current - 78;
+      const radP = (diffElevation * Math.PI) / 180;
+
+      // True 3D spatial spherical placement (Radius 4.5 meters in world space)
+      const R = 4.5;
+      noteGroup.position.x = R * Math.sin(radH);
+      noteGroup.position.y = -R * Math.sin(radP) + Math.sin(time * 2.0) * 0.18;
+      noteGroup.position.z = -R * Math.cos(radH);
 
       // Project 3D vector to 2D screen coordinate for callout HUD card
       const tempV = new THREE.Vector3();
@@ -406,14 +442,15 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       tempV.y += 1.4;
       tempV.project(camera);
 
-      const isBehind = tempV.z > 1;
+      // Object is behind or too far to side when z is near 0 / positive or angle is large
+      const isBehindOrOffscreen = noteGroup.position.z > -1.2 || Math.abs(diffAzimuth) > 65;
       const screenX = ((tempV.x + 1) * width) / 2;
       const screenY = ((-tempV.y + 1) * height) / 2;
 
       setTagScreenPos({
         x: screenX,
         y: screenY,
-        visible: !isBehind && Math.abs(bearingDiff) < 65,
+        visible: !isBehindOrOffscreen,
       });
 
       renderer.render(scene, camera);
@@ -440,7 +477,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       }
       renderer.dispose();
     };
-  }, [bearingDiff, isMysteryLocked, isMine, isHere]);
+  }, [isMysteryLocked, isMine, isHere]);
 
   // Handle touching / clicking the AR note
   const handleTouchNote = () => {
@@ -455,12 +492,12 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
 
     if (!isHere) {
       showToast(
-        `~${targetWalkingMinutes} min walk away (${distanceToTarget !== null ? formatDistance(distanceToTarget) : ''}). Walk within 60m to touch and dispel shadow!`
+        `~${targetWalkingMinutes} min walk away (${distanceToTarget !== null ? formatDistance(distanceToTarget) : ''}). Walk within ${POKEMON_GO_TOUCH_RADIUS_METERS}m to touch and dispel shadow!`
       );
       return;
     }
 
-    // Within 5 min and within 60m: Allowed!
+    // Within 5 min and within 40m: Allowed!
     onOpenNote(targetNote);
   };
 
@@ -619,7 +656,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
                 ? `>5 MIN WALK (${targetWalkingMinutes}m) • CANNOT TOUCH`
                 : isHere
                 ? 'IN TOUCH RANGE • TAP TO REVEAL'
-                : `~${targetWalkingMinutes} MIN WALK • WALK WITHIN 60M`}
+                : `~${targetWalkingMinutes} MIN WALK • WALK WITHIN 40M`}
             </span>
           </div>
 
@@ -633,9 +670,9 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
         {/* Top Header Bar */}
         <div className="flex items-center justify-between">
           {/* Brand + AR Tracking Pill */}
-          <div className="flex items-center gap-2 pointer-events-auto">
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 backdrop-blur-md border border-[#14143A]/15 shadow-sm">
-              <AppLogo size={20} showWordmark={false} />
+          <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
+            <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-white/95 backdrop-blur-md border border-[#14143A]/15 shadow-sm">
+              <AppLogo size={18} showWordmark={false} />
               <span className="font-display font-black text-xs text-[var(--ink-900)] tracking-tight">
                 {APP_NAME}
               </span>
@@ -644,7 +681,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
 
             {/* GPS Accuracy Tier Pill */}
             <div
-              className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold flex items-center gap-1.5 shadow-sm backdrop-blur-md"
+              className="px-2 sm:px-2.5 py-1 rounded-full text-[10px] font-mono font-bold flex items-center gap-1 sm:gap-1.5 shadow-sm backdrop-blur-md"
               style={{
                 background:
                   accuracyTier === 'high'
@@ -673,11 +710,14 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
                 }`}
               />
               <span>
-                {accuracyTier === 'high'
-                  ? `±${Math.round(accuracyMeters)}m • HIGH PRECISION`
-                  : accuracyTier === 'moderate'
-                  ? `±${Math.round(accuracyMeters)}m • MODERATE`
-                  : `±${Math.round(accuracyMeters)}m • LOW GPS LOCK`}
+                ±{Math.round(accuracyMeters)}m
+                <span className="hidden sm:inline">
+                  {accuracyTier === 'high'
+                    ? ' • HIGH PRECISION'
+                    : accuracyTier === 'moderate'
+                    ? ' • MODERATE'
+                    : ' • LOW LOCK'}
+                </span>
               </span>
             </div>
           </div>
@@ -862,7 +902,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
               ? isMine
                 ? 'YOUR NOTE • TAP TO INSPECT'
                 : 'TAP SHADOW TO DISPEL & TOUCH'
-              : `~${targetWalkingMinutes} MIN WALK • WALK WITHIN 60M TO TOUCH`}
+              : `~${targetWalkingMinutes} MIN WALK • WALK WITHIN 40M TO TOUCH`}
           </span>
         </div>
       </div>
@@ -953,7 +993,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
             >
               <Footprints size={16} weight="bold" color="var(--warn)" />
               <span className="truncate">
-                Walk &lt;60m to Touch (~{targetWalkingMinutes} min)
+                Walk &lt;40m to Touch (~{targetWalkingMinutes} min)
               </span>
             </button>
           ) : (

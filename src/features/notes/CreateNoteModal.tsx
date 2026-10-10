@@ -50,6 +50,8 @@ const STAMPS = [
   { id: 12, icon: Stamp, label: 'Tip' },
 ];
 
+import { MIN_NOTE_CHARS } from '@/contracts/types';
+
 export function CreateNoteModal() {
   const isCreateNoteOpen = useAppStore((s) => s.isCreateNoteOpen);
   const setIsCreateNoteOpen = useAppStore((s) => s.setIsCreateNoteOpen);
@@ -73,7 +75,7 @@ export function CreateNoteModal() {
   const maxChars = rarity === 'legendary' ? 480 : rarity === 'rare' ? 240 : 120;
   const currentChars = countGraphemes(body);
   const isModerated = bodyAllowed(body);
-  const isBodyValid = (currentChars >= 8 || voiceAudioUrl !== null) && currentChars <= maxChars && isModerated;
+  const isBodyValid = (currentChars >= MIN_NOTE_CHARS || voiceAudioUrl !== null) && currentChars <= maxChars && isModerated;
 
   const handleSeal = () => {
     if (!position || !profile) return;
@@ -310,7 +312,7 @@ export function CreateNoteModal() {
                     : `${currentChars} / ${maxChars} chars`}
                 </span>
                 <span style={{ color: 'var(--ink-300)' }}>
-                  Min 8 chars or voice note
+                  Min {MIN_NOTE_CHARS} chars or voice note
                 </span>
               </div>
             </div>

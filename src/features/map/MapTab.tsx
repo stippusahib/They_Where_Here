@@ -19,6 +19,11 @@ import {
 } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import {
+  POKEMON_GO_TOUCH_RADIUS_METERS,
+  POKEMON_GO_APPROACH_RADIUS_METERS,
+  POKEMON_GO_RADAR_RADIUS_METERS,
+} from '@/contracts/types';
+import {
   haversineDistance,
   bearing,
   toCardinal,
@@ -101,7 +106,7 @@ export const MapTab: React.FC = () => {
   // Step 1.8: ResizeObserver on arrived bar sets --dock-h
   useEffect(() => {
     const el = arrivedBarWrapRef.current;
-    if (!el || !nearestNote || nearestDistance === null || nearestDistance > 60) {
+    if (!el || !nearestNote || nearestDistance === null || nearestDistance > POKEMON_GO_TOUCH_RADIUS_METERS) {
       document.documentElement.style.setProperty('--dock-h', '0px');
       return;
     }
@@ -192,7 +197,7 @@ export const MapTab: React.FC = () => {
             </div>
 
             {notesWithDistance.map((note) => {
-              const isHere = note.distanceMeters <= 60;
+              const isHere = note.distanceMeters <= POKEMON_GO_TOUCH_RADIUS_METERS;
               return (
                 <div
                   key={note.id}
@@ -241,7 +246,7 @@ export const MapTab: React.FC = () => {
                         }}
                         className="px-2 py-1 rounded text-[10px] font-display hover:opacity-80"
                         style={{ background: '#FAF7F0', border: '1px solid #EADECA', color: 'var(--ink-700)' }}
-                        title="Stage Mode: Teleport within 60m"
+                        title="Stage Mode: Teleport within 40m"
                       >
                         Teleport
                       </button>
@@ -270,9 +275,9 @@ export const MapTab: React.FC = () => {
       {!isARModeOpen && (
         <>
           {/* ── TOP HUD ─────────────────────────────────────────────────── */}
-          <div className="fixed top-4 left-4 right-4 z-40 flex items-center justify-between safe-top pointer-events-none">
+          <div className="fixed top-2.5 sm:top-4 left-2.5 sm:left-4 right-2.5 sm:right-4 z-40 flex items-center justify-between safe-top pointer-events-none">
         {/* Left & Center HUD chips */}
-        <div className="flex items-center gap-2 pointer-events-auto">
+        <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto shrink-0">
           <HandleChip
             handle={profile?.handle ?? 'swift_fox'}
             xp={profile?.xp ?? 140}
@@ -295,11 +300,11 @@ export const MapTab: React.FC = () => {
         </div>
 
         {/* Right HUD Controls: AR Mode, Sound & List Toggle */}
-        <div className="flex items-center gap-2 pointer-events-auto">
+        <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto shrink-0">
           {/* Switch to AR Mode Button */}
           <button
             onClick={() => setIsARModeOpen(true)}
-            className="hud-chip flex items-center gap-1.5 px-3 py-1.5 rounded-full font-bold text-xs cursor-pointer shadow-md active:scale-95 transition-all"
+            className="hud-chip flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full font-bold text-xs cursor-pointer shadow-md active:scale-95 transition-all"
             style={{
               background: '#FFFFFF',
               border: '1.5px solid var(--hanko)',
@@ -308,37 +313,27 @@ export const MapTab: React.FC = () => {
             title="Switch to AR Camera Mode (Pokémon GO & GTA Pickup Style)"
             aria-label="Switch to AR Mode"
           >
-            <Camera size={16} weight="fill" color="var(--hanko)" />
-            <span className="font-display">AR Mode</span>
+            <Camera size={15} weight="fill" color="var(--hanko)" />
+            <span className="font-display">AR<span className="hidden xs:inline sm:inline">&nbsp;Mode</span></span>
           </button>
 
           <button
             onClick={toggleSound}
-            className="hud-chip flex items-center justify-center"
+            className="hud-chip flex items-center justify-center w-8 h-8 sm:w-[38px] sm:h-[38px] p-0 rounded-full cursor-pointer active:scale-95 transition-transform"
             style={{
-              width: 38,
-              height: 38,
-              padding: 0,
-              borderRadius: '50%',
-              cursor: 'pointer',
               background: '#FFFFFF',
               border: '1px solid #EADECA',
               color: 'var(--ink-700)',
             }}
             aria-label={soundEnabled ? 'Mute sound' : 'Unmute sound'}
           >
-            {soundEnabled ? <SpeakerHigh size={18} /> : <SpeakerSlash size={18} />}
+            {soundEnabled ? <SpeakerHigh size={16} /> : <SpeakerSlash size={16} />}
           </button>
 
           <button
             onClick={() => setIsListView((v) => !v)}
-            className="hud-chip flex items-center justify-center"
+            className="hud-chip flex items-center justify-center w-8 h-8 sm:w-[38px] sm:h-[38px] p-0 rounded-full cursor-pointer active:scale-95 transition-transform"
             style={{
-              width: 38,
-              height: 38,
-              padding: 0,
-              borderRadius: '50%',
-              cursor: 'pointer',
               background: '#FFFFFF',
               border: '1px solid #EADECA',
               color: 'var(--ink-700)',
@@ -346,24 +341,23 @@ export const MapTab: React.FC = () => {
             aria-label={isListView ? 'Switch to map view' : 'Switch to list view'}
           >
             {isListView ? (
-              <MapTrifold size={18} weight="bold" />
+              <MapTrifold size={16} weight="bold" />
             ) : (
-              <List size={18} weight="bold" />
+              <List size={16} weight="bold" />
             )}
           </button>
         </div>
       </div>
 
       {/* ── LAYOVER CHIP (Step 1.6: opens Layover Sheet) ─────────────── */}
-      <div className="fixed top-16 left-4 z-40 safe-top pointer-events-auto flex items-center gap-2">
+      <div className="fixed top-14 sm:top-16 left-2.5 sm:left-4 z-40 safe-top pointer-events-auto flex items-center gap-1.5 sm:gap-2">
         <button
           onClick={() => setIsLayoverSheetOpen(true)}
-          className="hud-chip flex items-center gap-1.5 cursor-pointer transition-transform active:scale-95 shadow-sm"
+          className="hud-chip flex items-center gap-1.5 cursor-pointer transition-transform active:scale-95 shadow-sm text-xs"
           style={{
             background: '#FFFFFF',
             border: '1.5px solid #EADECA',
             color: 'var(--ink-700)',
-            fontSize: 'var(--text-xs)',
           }}
           aria-label="Open Layover Duration Sheet"
         >
@@ -387,16 +381,11 @@ export const MapTab: React.FC = () => {
 
       {/* ── MAP RECENTER BUTTON (Returns to Street View) ────────────── */}
       {!isListView && (
-        <div className="fixed top-16 right-4 z-40 safe-top pointer-events-auto">
+        <div className="fixed top-14 sm:top-16 right-2.5 sm:right-4 z-40 safe-top pointer-events-auto">
           <button
             onClick={handleRecenterStreetView}
-            className="hud-chip flex items-center justify-center transition-transform active:scale-95 shadow-md"
+            className="hud-chip flex items-center justify-center w-8 h-8 sm:w-[38px] sm:h-[38px] p-0 rounded-full cursor-pointer transition-transform active:scale-95 shadow-md"
             style={{
-              width: 38,
-              height: 38,
-              padding: 0,
-              borderRadius: '50%',
-              cursor: 'pointer',
               background: '#FFFFFF',
               border: '1.5px solid #EADECA',
               color: 'var(--hanko)',
@@ -404,14 +393,14 @@ export const MapTab: React.FC = () => {
             title="Recenter Street View"
             aria-label="Recenter Street View"
           >
-            <NavigationArrow size={18} weight="bold" color="var(--hanko)" />
+            <NavigationArrow size={16} weight="bold" color="var(--hanko)" />
           </button>
         </div>
       )}
 
       {/* ── BOTTOM HUD & ACTIONS ────────────────────────────────────── */}
-      {/* If note is in range (<= 60m), show docking ArrivedBar */}
-      {nearestNote && nearestDistance !== null && nearestDistance <= 60 ? (
+      {/* If note is in range (<= 40m), show docking ArrivedBar */}
+      {nearestNote && nearestDistance !== null && nearestDistance <= POKEMON_GO_TOUCH_RADIUS_METERS ? (
         <div ref={arrivedBarWrapRef}>
           <ArrivedBar
             onOpen={() => handleOpenNote(nearestNote)}
@@ -421,7 +410,7 @@ export const MapTab: React.FC = () => {
       ) : (
         /* Otherwise show nearest note radar chip */
         <div
-          className="fixed left-4 z-40 pointer-events-auto"
+          className="fixed left-2.5 sm:left-4 z-40 pointer-events-auto"
           style={{ bottom: 'calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--dock-gap))' }}
         >
           <RadarChip
@@ -431,9 +420,9 @@ export const MapTab: React.FC = () => {
             state={
               nearestDistance === null
                 ? 'unsure'
-                : nearestDistance <= 150
+                : nearestDistance <= POKEMON_GO_APPROACH_RADIUS_METERS
                 ? 'close'
-                : nearestDistance <= 400
+                : nearestDistance <= POKEMON_GO_RADAR_RADIUS_METERS
                 ? 'near'
                 : 'far'
             }

@@ -4,7 +4,7 @@
  * Sound/Haptic toggles, Safety Sheet, and Stage Mode for judges.
  * ============================================================ */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   UserCircle,
   SpeakerHigh,
@@ -14,6 +14,9 @@ import {
   ArrowClockwise,
   Sun,
   Sparkle,
+  DownloadSimple,
+  DeviceMobile,
+  CheckCircle,
 } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import { APP_NAME } from '@/contracts/types';
@@ -45,6 +48,36 @@ export function MeTab() {
 
   const [logoTaps, setLogoTaps] = useState(0);
   const [showStageControls, setShowStageControls] = useState(isSimulated);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [installSuccess, setInstallSuccess] = useState(false);
+
+  useEffect(() => {
+    // Check if app is running in standalone installed PWA mode
+    const isStandaloneMode =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (navigator as any).standalone === true;
+    setIsStandalone(Boolean(isStandaloneMode));
+
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const choice = await deferredPrompt.userChoice;
+      if (choice?.outcome === 'accepted') {
+        setInstallSuccess(true);
+        setDeferredPrompt(null);
+      }
+    }
+  };
 
   // Hidden 5 taps on logo activates Stage Mode for judges
   const handleLogoTap = () => {
@@ -252,6 +285,68 @@ export function MeTab() {
                 />
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Web Application & Installation Card */}
+        <div className="flex flex-col gap-2">
+          <span className="font-display text-xs px-1" style={{ color: 'var(--ink-700)' }}>
+            Web Application & Installation
+          </span>
+
+          <div
+            className="rounded-2xl p-4 flex flex-col gap-3 shadow-sm"
+            style={{
+              background: '#FFFFFF',
+              border: '1.5px solid #EADECA',
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <DeviceMobile size={18} color="var(--hanko)" weight="bold" />
+                <span className="text-xs font-bold" style={{ color: 'var(--ink-900)' }}>
+                  Install They Were Here
+                </span>
+              </div>
+              {isStandalone || installSuccess ? (
+                <span className="flex items-center gap-1 text-[10px] font-mono font-bold text-[var(--mint)] bg-[var(--mint)]/10 px-2 py-0.5 rounded-full">
+                  <CheckCircle size={12} weight="fill" />
+                  INSTALLED
+                </span>
+              ) : (
+                <span className="text-[10px] font-mono font-bold text-[var(--ink-500)] bg-[#FAF7F0] px-2 py-0.5 rounded-full border border-[#EADECA]">
+                  PWA READY
+                </span>
+              )}
+            </div>
+
+            <p className="text-xs font-body leading-relaxed" style={{ color: 'var(--ink-700)' }}>
+              {isStandalone || installSuccess
+                ? 'Running as standalone web app with full offline cache and real-time GPS telemetry.'
+                : 'Install as a lightweight web app on your home screen for quick travel access and offline radar.'}
+            </p>
+
+            {!isStandalone && !installSuccess && (
+              deferredPrompt ? (
+                <button
+                  onClick={handleInstallApp}
+                  className="slant-btn slant-btn--primary py-2.5 text-xs text-center cursor-pointer flex items-center justify-center gap-2 shadow-sm font-bold"
+                >
+                  <DownloadSimple size={15} weight="bold" />
+                  <span>Install to Device / Home Screen</span>
+                </button>
+              ) : (
+                <div
+                  className="text-[11px] p-2.5 rounded-xl flex items-center gap-2"
+                  style={{ background: '#FAF7F0', border: '1px solid #EADECA', color: 'var(--ink-600)' }}
+                >
+                  <DownloadSimple size={14} className="shrink-0" color="var(--hanko)" />
+                  <span>
+                    Tap browser menu <strong className="text-[var(--ink-900)]">Share</strong> or <strong className="text-[var(--ink-900)]">⋮</strong> &gt; select <strong className="text-[var(--ink-900)]">Add to Home Screen</strong>.
+                  </span>
+                </div>
+              )
+            )}
           </div>
         </div>
 

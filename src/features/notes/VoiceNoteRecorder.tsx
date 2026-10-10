@@ -14,17 +14,20 @@ import {
   Check,
   SpeakerHigh,
 } from '@phosphor-icons/react';
+import { MAX_VOICE_DURATION_SECONDS } from '@/contracts/types';
 
 interface VoiceNoteRecorderProps {
   onAudioRecorded: (audioDataUrl: string, durationSeconds: number) => void;
   onAudioCleared: () => void;
   initialAudioUrl?: string;
+  maxSeconds?: number;
 }
 
 export const VoiceNoteRecorder: React.FC<VoiceNoteRecorderProps> = ({
   onAudioRecorded,
   onAudioCleared,
   initialAudioUrl,
+  maxSeconds = MAX_VOICE_DURATION_SECONDS,
 }) => {
   const [state, setState] = useState<'idle' | 'recording' | 'recorded' | 'playing'>('idle');
   const [duration, setDuration] = useState(0);
@@ -125,9 +128,9 @@ export const VoiceNoteRecorder: React.FC<VoiceNoteRecorderProps> = ({
 
       timerIntervalRef.current = window.setInterval(() => {
         setDuration((prev) => {
-          if (prev >= 30) {
+          if (prev >= maxSeconds) {
             stopRecording();
-            return 30;
+            return maxSeconds;
           }
           return prev + 1;
         });
@@ -228,7 +231,7 @@ export const VoiceNoteRecorder: React.FC<VoiceNoteRecorderProps> = ({
               color: 'var(--ink-500)',
             }}
           >
-            Max 30 seconds
+            Max {maxSeconds} seconds
           </span>
         )}
       </div>
@@ -269,7 +272,7 @@ export const VoiceNoteRecorder: React.FC<VoiceNoteRecorderProps> = ({
               className="font-mono text-xs font-bold"
               style={{ color: 'var(--ink-900)' }}
             >
-              {formatSecs(duration)} / 0:30
+              {formatSecs(duration)} / {formatSecs(maxSeconds)}
             </span>
             {/* Animated Waveform Bars */}
             <div className="flex items-center gap-0.5 h-6 flex-1 px-2">

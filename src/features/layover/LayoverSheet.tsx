@@ -11,7 +11,7 @@ interface LayoverSheetProps {
   notesInReachCount: number;
 }
 
-const QUICK_HOURS = [1, 2, 4, 6];
+const QUICK_HOURS = [1, 2, 4, 6, 8];
 
 export const LayoverSheet: React.FC<LayoverSheetProps> = ({
   isOpen,

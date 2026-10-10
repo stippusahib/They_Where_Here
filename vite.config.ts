@@ -15,25 +15,25 @@ export default defineConfig({
       manifest: {
         name: 'They Were Here',
         short_name: 'They Were Here',
-        description: 'Somebody left this for you. Location-locked notes from travellers.',
-        theme_color: '#0F1230',
-        background_color: '#0F1230',
+        description: 'Somebody left this for you. Location-locked travel notes that only open when you\'re there.',
+        theme_color: '#FAFAF7',
+        background_color: '#FAFAF7',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
         icons: [
           {
-            src: '/assets/icon-192.png',
+            src: '/logo.png',
             sizes: '192x192',
             type: 'image/png',
           },
           {
-            src: '/assets/icon-512.png',
+            src: '/logo.png',
             sizes: '512x512',
             type: 'image/png',
           },
           {
-            src: '/assets/icon-512-maskable.png',
+            src: '/logo.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
@@ -72,6 +72,33 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(import.meta.dirname, 'src'),
+    },
+  },
+  build: {
+    chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          const normalized = id.replace(/\\/g, '/');
+          if (normalized.includes('/node_modules/three/')) {
+            return 'three-vendor';
+          }
+          if (normalized.includes('/node_modules/maplibre-gl/')) {
+            return 'map-vendor';
+          }
+          if (normalized.includes('/node_modules/@phosphor-icons/')) {
+            return 'icons';
+          }
+          if (
+            normalized.includes('/node_modules/react/') ||
+            normalized.includes('/node_modules/react-dom/') ||
+            normalized.includes('/node_modules/wouter/') ||
+            normalized.includes('/node_modules/zustand/')
+          ) {
+            return 'vendor-react';
+          }
+        },
+      },
     },
   },
   define: {

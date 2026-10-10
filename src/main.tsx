@@ -7,6 +7,10 @@ import '@fontsource/noto-sans-malayalam/400.css';
 import '@fontsource/noto-sans-malayalam/700.css';
 import '@/ui/tokens.css';
 import { App } from './App';
+import { registerSW } from 'virtual:pwa-register';
+
+// Auto-update service worker
+registerSW({ immediate: true });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

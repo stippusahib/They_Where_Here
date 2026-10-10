@@ -7,6 +7,22 @@
 /** Application name constant — change in one place */
 export const APP_NAME = 'They Were Here' as const;
 
+/**
+ * Physical Proximity Radii (Pokemon GO Calibration)
+ * POKEMON_GO_TOUCH_RADIUS_METERS: 40m (exact PokeStop/Gym interaction disc)
+ * POKEMON_GO_APPROACH_RADIUS_METERS: 80m (close radar approach ring)
+ * POKEMON_GO_RADAR_RADIUS_METERS: 350m (5-minute walking detection perimeter)
+ */
+export const POKEMON_GO_TOUCH_RADIUS_METERS = 40 as const;
+export const POKEMON_GO_APPROACH_RADIUS_METERS = 80 as const;
+export const POKEMON_GO_RADAR_RADIUS_METERS = 350 as const;
+
+/** Minimum characters required for note text */
+export const MIN_NOTE_CHARS = 3 as const;
+
+/** Maximum voice recording limit in seconds */
+export const MAX_VOICE_DURATION_SECONDS = 30 as const;
+
 /** Note rarity tiers */
 export type NoteRarity = 'common' | 'rare' | 'legendary';
 
