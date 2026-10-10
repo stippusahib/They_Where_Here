@@ -200,7 +200,13 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     }
   };
 
-  // ── 3. DEVICE ORIENTATION & COMPASS (Physical Geomagnetic Lock) ──
+   // ── 3. DEVICE ORIENTATION & COMPASS (Physical Geomagnetic Lock) ──
+  // Low-pass filter state for sensor smoothing (filter the INPUT, not the OUTPUT)
+  const filteredAlphaRef = useRef<number | null>(null);
+  const filteredBetaRef = useRef<number | null>(null);
+  const filteredGammaRef = useRef<number | null>(null);
+  const SENSOR_FILTER = 0.8; // 0.0 = max smooth (sluggish), 1.0 = raw (jittery). 0.8 = best for AR.
+
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
       let alpha = e.alpha ?? 0;
@@ -209,29 +215,56 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
 
       const anyEvent = e as unknown as { webkitCompassHeading?: number };
       if (typeof anyEvent.webkitCompassHeading === 'number') {
+        // iOS Safari: webkitCompassHeading is a true 0-360 compass heading
         alpha = anyEvent.webkitCompassHeading;
         setDeviceHeading(Math.round(alpha));
       } else {
+        // Android/W3C: alpha is counter-clockwise from North
         const heading = (360 - alpha + 360) % 360;
         setDeviceHeading(Math.round(heading));
       }
+
+      // ── Low-pass complementary filter on raw sensor values ──
+      // This removes micro-jitter from cheap IMU sensors WITHOUT adding camera lag.
+      // Real AR SDKs (ARCore, 8th Wall) do the same: filter the sensor, not the render.
+      if (filteredAlphaRef.current === null || filteredBetaRef.current === null || filteredGammaRef.current === null) {
+        filteredAlphaRef.current = alpha;
+        filteredBetaRef.current = beta;
+        filteredGammaRef.current = gamma;
+      } else {
+        // Handle alpha wrap-around (359° -> 1° should not lerp through 180°)
+        let dAlpha = alpha - filteredAlphaRef.current;
+        if (dAlpha > 180) dAlpha -= 360;
+        if (dAlpha < -180) dAlpha += 360;
+        filteredAlphaRef.current = ((filteredAlphaRef.current + dAlpha * SENSOR_FILTER) + 360) % 360;
+        filteredBetaRef.current = filteredBetaRef.current + (beta - filteredBetaRef.current) * SENSOR_FILTER;
+        filteredGammaRef.current = filteredGammaRef.current + (gamma - filteredGammaRef.current) * SENSOR_FILTER;
+      }
+
+      const fAlpha = filteredAlphaRef.current ?? alpha;
+      const fBeta = filteredBetaRef.current ?? beta;
+      const fGamma = filteredGammaRef.current ?? gamma;
 
       const orient =
         window.screen?.orientation?.angle ||
         (window as unknown as { orientation?: number }).orientation ||
         0;
 
-      const aRad = THREE.MathUtils.degToRad(alpha);
-      const bRad = THREE.MathUtils.degToRad(beta);
-      const gRad = THREE.MathUtils.degToRad(gamma);
+      const aRad = THREE.MathUtils.degToRad(fAlpha);
+      const bRad = THREE.MathUtils.degToRad(fBeta);
+      const gRad = THREE.MathUtils.degToRad(fGamma);
       const oRad = THREE.MathUtils.degToRad(orient);
 
+      // Standard W3C DeviceOrientation -> Three.js camera quaternion
+      // (Same formula as deprecated Three.js DeviceOrientationControls)
       qEuler.set(bRad, aRad, -gRad, 'YXZ');
       const rawQuat = new THREE.Quaternion().setFromEuler(qEuler);
-      rawQuat.multiply(q1);
-      rawQuat.multiply(q0.setFromAxisAngle(qZee, -oRad));
+      rawQuat.multiply(q1); // Rotate camera to look out the back of the device
+      rawQuat.multiply(q0.setFromAxisAngle(qZee, -oRad)); // Adjust for screen orientation
 
-      // Direct physical camera orientation matching the phone in the real world
+      // Direct copy -- ZERO smoothing on output. This is critical for AR.
+      // Any slerp/lerp here causes the camera to lag behind the phone, making
+      // objects appear to "move with the camera" instead of staying world-anchored.
       targetCamQuatRef.current.copy(rawQuat);
       hasOrientDataRef.current = true;
     };
@@ -371,6 +404,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(58, width / height, 0.1, 1000);
     camera.position.set(0, 0, 0);
+    camera.rotation.order = 'YXZ'; // Prevents gimbal lock for device orientation
 
     const renderer = new THREE.WebGLRenderer({
       alpha: true,
@@ -482,22 +516,26 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     });
     const beamMesh = new THREE.Mesh(beamGeom, beamMat);
     beamMesh.position.y = -0.5;
+    noteGroup.add(beamMesh);
 
-    // Position note solidly stuck in 3D world space (zero drifting with camera moves)
-    const R = 3.2; // 3.2m physical distance in world
+    // ── WORLD ANCHOR: Fixed position in 3D world space ──
+    // The note is placed at a fixed (x, y, z) and NEVER moved again.
+    // Only the camera rotates (via device sensors). This is how every
+    // AR SDK anchors objects: object stays still, camera moves.
+    const R = 3.2;
     const radBearing = THREE.MathUtils.degToRad(targetBearing);
-    // In Three.js world space: North is -Z, East is +X, South is +Z, West is -X
     const noteX = R * Math.sin(radBearing);
     const noteZ = -R * Math.cos(radBearing);
-    const noteY = -0.6; // Sitting on floor / table surface below eye level
-    noteGroup.position.set(noteX, noteY, noteZ);
+    noteGroup.position.set(noteX, -0.6, noteZ);
+    noteGroup.frustumCulled = false; // Never cull the note
     scene.add(noteGroup);
+
     cameraRef.current = camera;
     interactiveMeshesRef.current = [noteMesh, sealMesh, qMarkMesh, ringMesh].filter(Boolean) as THREE.Object3D[];
 
     // ── Animation Loop ──
     let animId: number;
-    let clock = new THREE.Clock();
+    const clock = new THREE.Clock();
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
@@ -522,8 +560,15 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       ringMesh.scale.set(ringScale, ringScale, ringScale);
       ringMat.opacity = Math.max(0, 0.6 - (time % 2.5) * 0.24);
 
-      // Camera rotates with real-world phone movement (or drag fallback)
-      camera.quaternion.slerp(targetCamQuatRef.current, 0.25);
+      // ── CRITICAL: Direct 1:1 camera quaternion copy ──
+      // NO slerp, NO lerp, NO smoothing on the OUTPUT.
+      // The sensor input is already low-pass filtered above.
+      // This is how ARCore, AR.js, and 8th Wall all work:
+      // filter the sensor → copy directly to camera → zero render lag.
+      camera.quaternion.copy(targetCamQuatRef.current);
+
+      // noteGroup.position is NEVER touched here. It stays at (noteX, -0.6, noteZ) forever.
+      // The camera rotates around (0,0,0) with the phone. The note is anchored in the world.
 
       // Reticle Lock-On Detection (checks if camera is aiming directly at the note)
       const camDir = new THREE.Vector3();
@@ -540,13 +585,12 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
         setIsReticleLockedOn(isLockedOn);
       }
 
-      // Project 3D vector to 2D screen coordinate for callout HUD card
+      // Project 3D world position to 2D screen coordinate for callout HUD card
       const tempV = new THREE.Vector3();
       tempV.setFromMatrixPosition(noteMesh.matrixWorld);
       tempV.y += 1.3;
       tempV.project(camera);
 
-      // Object is in front of camera if dot > 0.15 (within ~80 degrees of line of sight)
       const isInFront = dot > 0.15;
       const isOnScreen = isInFront && Math.abs(tempV.x) <= 1.05 && Math.abs(tempV.y) <= 1.05;
       const screenX = ((tempV.x + 1) * width) / 2;
