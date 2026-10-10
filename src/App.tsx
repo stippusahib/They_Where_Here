@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Router, Route, Switch } from 'wouter';
 import { useHashLocation } from 'wouter/use-hash-location';
 import { APP_NAME } from '@/contracts/types';
@@ -11,10 +11,12 @@ import { LayoverOnboarding } from '@/features/onboarding/LayoverOnboarding';
 import { TabBar } from '@/ui/components/TabBar';
 import { Banner } from '@/ui/components/Banner';
 import { useAppStore } from '@/state/store';
+import { resolveActiveTheme, applyTheme } from '@/ui/theme';
 
 /**
  * Root application component.
- * Layover onboarding front door (P0), Hash routing, bottom tab navigation, global banners.
+ * Mobile-first containment on desktop, Day/Night suncalc synchronization,
+ * Layover onboarding front door (P0), bottom tab navigation.
  */
 export function App() {
   const [activeTab, setActiveTab] = useState<TabId>('map');
@@ -22,48 +24,59 @@ export function App() {
   const isOffline = useAppStore((s) => s.isOffline);
   const hasSeenLayoverOnboarding = useAppStore((s) => s.hasSeenLayoverOnboarding);
   const setHasSeenLayoverOnboarding = useAppStore((s) => s.setHasSeenLayoverOnboarding);
+  const themeMode = useAppStore((s) => s.themeMode);
+  const position = useAppStore((s) => s.position);
+  const setActiveTheme = useAppStore((s) => s.setActiveTheme);
+
+  // Sync theme with sun position and mode
+  useEffect(() => {
+    const active = resolveActiveTheme(themeMode, position?.lat, position?.lng);
+    setActiveTheme(active);
+    applyTheme(active);
+  }, [themeMode, position?.lat, position?.lng]);
 
   return (
     <Router hook={useHashLocation}>
-      <div className="flex flex-col h-[100dvh] relative overflow-hidden">
-        {/* P0 Front Door: Layover hours question runs before user sees map */}
-        {!hasSeenLayoverOnboarding && (
-          <LayoverOnboarding
-            onComplete={() => setHasSeenLayoverOnboarding(true)}
-          />
-        )}
+      <div className="desktop-app-wrapper">
+        <div className="desktop-phone-frame flex flex-col relative overflow-hidden">
+          {/* P0 Front Door: Layover hours question runs before user sees map */}
+          {!hasSeenLayoverOnboarding && (
+            <LayoverOnboarding
+              onComplete={() => setHasSeenLayoverOnboarding(true)}
+            />
+          )}
 
-        {/* Global banners */}
-        {isSimulated && (
-          <Banner variant="danger" label="SIMULATED GPS" />
-        )}
-        {isOffline && (
-          <Banner
-            variant="warn"
-            label="You're offline. Notes you've opened are still in your passport."
-          />
-        )}
+          {/* Global banners */}
+          {isSimulated && (
+            <Banner variant="danger" label="SIMULATED GPS" />
+          )}
+          {isOffline && (
+            <Banner
+              variant="warn"
+              label="You're offline. Notes you've opened are still in your passport."
+            />
+          )}
 
-        {/* Tab content */}
-        <main className="flex-1 relative overflow-hidden">
-          <Switch>
-            <Route path="/" component={MapTab} />
-            <Route path="/passport" component={PassportTab} />
-            <Route path="/album" component={PassportTab} />
-            <Route path="/ranks" component={RanksTab} />
-            <Route path="/me" component={MeTab} />
-            <Route>
-              <MapTab />
-            </Route>
-          </Switch>
-        </main>
+          {/* Tab content */}
+          <main className="flex-1 relative overflow-hidden">
+            <Switch>
+              <Route path="/" component={MapTab} />
+              <Route path="/passport" component={PassportTab} />
+              <Route path="/album" component={PassportTab} />
+              <Route path="/ranks" component={RanksTab} />
+              <Route path="/me" component={MeTab} />
+              <Route>
+                <MapTab />
+              </Route>
+            </Switch>
+          </main>
 
-        {/* Bottom navigation */}
-        <TabBar active={activeTab} onTabChange={setActiveTab} />
+          {/* Bottom navigation */}
+          <TabBar active={activeTab} onTabChange={setActiveTab} />
+        </div>
       </div>
     </Router>
   );
 }
 
-// Unused but required by the spec — keep the name accessible
 void APP_NAME;

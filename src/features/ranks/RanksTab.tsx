@@ -1,11 +1,11 @@
 /* ============================================================
  * THEY WERE HERE — Ranks Tab (P0)
  * Leaderboard with "Hunters" (XP/Unlocks) and "Authors" (Votes)
- * Top 3 podium, ranking list, own row pinned at the bottom.
+ * Top 3 podium, ranking list, own row pinned above the dock.
  * ============================================================ */
 
 import { useState } from 'react';
-import { Trophy, Medal, Crown, UserCircle } from '@phosphor-icons/react';
+import { Medal, Crown, UserCircle, Trophy } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 
 interface RankUser {
@@ -43,7 +43,7 @@ export function RanksTab() {
 
   return (
     <div
-      className="h-full flex flex-col overflow-hidden"
+      className="h-full flex flex-col overflow-hidden relative"
       style={{
         background: `linear-gradient(
           180deg,
@@ -53,169 +53,221 @@ export function RanksTab() {
         )`,
       }}
     >
-      {/* Header */}
-      <header className="safe-top px-5 pt-6 pb-3 shrink-0">
-        <h1
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 'var(--font-size-xl)',
-            color: 'white',
-          }}
-        >
-          Leaderboard
-        </h1>
-        <p
-          className="mt-1"
-          style={{
-            fontFamily: 'var(--font-body)',
-            fontSize: 'var(--font-size-xs)',
-            color: 'rgba(255, 255, 255, 0.6)',
-          }}
-        >
-          {boardType === 'hunters'
-            ? 'Travellers exploring the most hidden spots'
-            : 'Authors whose travel tips are voted "Worth the trip"'}
-        </p>
-
-        {/* Sub-Tabs Switch */}
-        <div className="flex bg-white/10 p-1 rounded-xl mt-4 max-w-xs">
-          <button
-            onClick={() => setBoardType('hunters')}
-            className="flex-1 py-1.5 rounded-lg text-xs font-display transition-all cursor-pointer"
-            style={{
-              background: boardType === 'hunters' ? 'var(--color-hanko)' : 'transparent',
-              color: 'white',
-            }}
-          >
-            Hunters
-          </button>
-          <button
-            onClick={() => setBoardType('authors')}
-            className="flex-1 py-1.5 rounded-lg text-xs font-display transition-all cursor-pointer"
-            style={{
-              background: boardType === 'authors' ? 'var(--color-hanko)' : 'transparent',
-              color: 'white',
-            }}
-          >
-            Authors
-          </button>
-        </div>
-      </header>
-
-      {/* Top 3 Podium */}
-      <div className="px-5 pt-2 pb-4 shrink-0 flex justify-center items-end gap-3">
-        {/* Rank 2 */}
-        {top3[1] && (
-          <div className="flex flex-col items-center flex-1 max-w-[90px]">
-            <div className="glass w-12 h-12 rounded-full flex items-center justify-center mb-1 border border-white/20">
-              <Medal size={24} color="#C0C0C0" weight="fill" />
-            </div>
-            <span className="font-display text-white text-[11px] truncate w-full text-center">
-              @{top3[1].handle}
-            </span>
-            <span className="text-[10px] text-white/50">
-              {boardType === 'hunters' ? `${top3[1].xp} XP` : `${top3[1].worth_received} votes`}
-            </span>
-            <div className="w-full h-12 bg-white/10 rounded-t-xl mt-2 flex items-center justify-center font-display text-white/40 text-sm">
-              #2
-            </div>
+      <div className="max-w-md mx-auto w-full h-full flex flex-col">
+        {/* Header */}
+        <header className="safe-top px-5 pt-6 pb-3 shrink-0">
+          <div className="flex items-center gap-2">
+            <Trophy size={20} color="var(--legendary)" weight="fill" />
+            <h1 className="font-display text-white text-xl">
+              Leaderboard
+            </h1>
           </div>
-        )}
+          <p className="mt-1 text-xs text-white/60 font-body">
+            {boardType === 'hunters'
+              ? 'Travellers exploring the most hidden spots'
+              : 'Authors whose travel tips are voted "Worth the trip"'}
+          </p>
 
-        {/* Rank 1 */}
-        {top3[0] && (
-          <div className="flex flex-col items-center flex-1 max-w-[100px]">
-            <Crown size={22} weight="fill" color="var(--color-legendary)" className="mb-0.5 animate-bounce" />
-            <div
-              className="w-14 h-14 rounded-full flex items-center justify-center mb-1 shadow-lg"
+          {/* Sub-Tabs Switch (Sentence Case) */}
+          <div
+            className="flex p-1 rounded-xl mt-4 max-w-xs"
+            style={{
+              background: 'var(--sheet-bg)',
+              border: '1px solid var(--sheet-border)',
+            }}
+          >
+            <button
+              onClick={() => setBoardType('hunters')}
+              className="flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
               style={{
-                background: 'var(--color-legendary)',
-                boxShadow: '0 0 16px var(--color-legendary)66',
+                background: boardType === 'hunters' ? 'var(--accent)' : 'transparent',
+                color: boardType === 'hunters' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)',
+                boxShadow: boardType === 'hunters' ? '0 2px 8px rgba(210,63,90,0.35)' : 'none',
               }}
             >
-              <Trophy size={28} weight="fill" color="#0F1230" />
-            </div>
-            <span className="font-display text-white text-xs truncate w-full text-center">
-              @{top3[0].handle}
-            </span>
-            <span className="text-[10px] text-yellow-300 font-bold">
-              {boardType === 'hunters' ? `${top3[0].xp} XP` : `${top3[0].worth_received} votes`}
-            </span>
-            <div
-              className="w-full h-16 rounded-t-xl mt-2 flex items-center justify-center font-display text-white text-base"
-              style={{ background: 'var(--color-legendary)33', borderTop: '2px solid var(--color-legendary)' }}
+              Hunters
+            </button>
+            <button
+              onClick={() => setBoardType('authors')}
+              className="flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
+              style={{
+                background: boardType === 'authors' ? 'var(--accent)' : 'transparent',
+                color: boardType === 'authors' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)',
+                boxShadow: boardType === 'authors' ? '0 2px 8px rgba(210,63,90,0.35)' : 'none',
+              }}
             >
-              #1
-            </div>
+              Authors
+            </button>
           </div>
-        )}
+        </header>
 
-        {/* Rank 3 */}
-        {top3[2] && (
-          <div className="flex flex-col items-center flex-1 max-w-[90px]">
-            <div className="glass w-12 h-12 rounded-full flex items-center justify-center mb-1 border border-white/20">
-              <Medal size={24} color="#CD7F32" weight="fill" />
+        {/* Top 3 Podium (Scrapbook Badges) */}
+        <div className="flex items-end justify-center gap-3 px-5 py-3 shrink-0">
+          {/* Rank 2 (Silver) */}
+          {top3[1] && (
+            <div className="flex flex-col items-center flex-1 max-w-[96px]">
+              <div
+                className="w-13 h-13 rounded-full flex items-center justify-center mb-1.5 shadow-lg"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: '2px solid #C0C0C0',
+                }}
+              >
+                <Medal size={26} color="#D8D8D8" weight="fill" />
+              </div>
+              <span className="font-display text-white text-[11px] truncate w-full text-center">
+                @{top3[1].handle}
+              </span>
+              <span
+                className="text-[10px] text-white/60 font-body"
+                style={{ fontVariantNumeric: 'tabular-nums' }}
+              >
+                {boardType === 'hunters' ? `${top3[1].xp} XP` : `${top3[1].worth_received} votes`}
+              </span>
+              <div
+                className="w-full h-10 rounded-t-xl mt-2 flex items-center justify-center font-display text-white/50 text-sm font-bold"
+                style={{ background: 'rgba(255, 255, 255, 0.12)' }}
+              >
+                #2
+              </div>
             </div>
-            <span className="font-display text-white text-[11px] truncate w-full text-center">
-              @{top3[2].handle}
-            </span>
-            <span className="text-[10px] text-white/50">
-              {boardType === 'hunters' ? `${top3[2].xp} XP` : `${top3[2].worth_received} votes`}
-            </span>
-            <div className="w-full h-8 bg-white/10 rounded-t-xl mt-2 flex items-center justify-center font-display text-white/40 text-sm">
-              #3
-            </div>
-          </div>
-        )}
-      </div>
+          )}
 
-      {/* Leaderboard List */}
-      <div className="flex-1 overflow-y-auto px-5 pb-32 flex flex-col gap-2">
-        {rest.map((user, idx) => (
+          {/* Rank 1 (Gold Champion) */}
+          {top3[0] && (
+            <div className="flex flex-col items-center flex-1 max-w-[104px]">
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center mb-1.5 relative shadow-xl"
+                style={{
+                  background: 'color-mix(in srgb, var(--legendary) 20%, transparent)',
+                  border: '2.5px solid var(--legendary)',
+                  boxShadow: '0 0 20px rgba(255, 201, 60, 0.35)',
+                }}
+              >
+                <Crown size={32} color="var(--legendary)" weight="fill" />
+              </div>
+              <span className="font-display text-white text-xs truncate w-full text-center font-bold">
+                @{top3[0].handle}
+              </span>
+              <span
+                className="text-[11px] text-[var(--legendary)] font-bold font-body"
+                style={{ fontVariantNumeric: 'tabular-nums' }}
+              >
+                {boardType === 'hunters' ? `${top3[0].xp} XP` : `${top3[0].worth_received} votes`}
+              </span>
+              <div
+                className="w-full h-16 rounded-t-xl mt-2 flex items-center justify-center font-display text-white text-base font-black shadow-inner"
+                style={{
+                  background: 'linear-gradient(180deg, rgba(255, 201, 60, 0.3) 0%, rgba(255, 201, 60, 0.1) 100%)',
+                  borderTop: '2px solid var(--legendary)',
+                }}
+              >
+                #1
+              </div>
+            </div>
+          )}
+
+          {/* Rank 3 (Bronze) */}
+          {top3[2] && (
+            <div className="flex flex-col items-center flex-1 max-w-[96px]">
+              <div
+                className="w-13 h-13 rounded-full flex items-center justify-center mb-1.5 shadow-lg"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '2px solid #CD7F32',
+                }}
+              >
+                <Medal size={26} color="#CD7F32" weight="fill" />
+              </div>
+              <span className="font-display text-white text-[11px] truncate w-full text-center">
+                @{top3[2].handle}
+              </span>
+              <span
+                className="text-[10px] text-white/60 font-body"
+                style={{ fontVariantNumeric: 'tabular-nums' }}
+              >
+                {boardType === 'hunters' ? `${top3[2].xp} XP` : `${top3[2].worth_received} votes`}
+              </span>
+              <div
+                className="w-full h-8 rounded-t-xl mt-2 flex items-center justify-center font-display text-white/40 text-sm font-bold"
+                style={{ background: 'rgba(255, 255, 255, 0.08)' }}
+              >
+                #3
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Leaderboard Rest of List */}
+        <div className="flex-1 overflow-y-auto px-5 pb-36 flex flex-col gap-2.5">
+          {rest.map((user, idx) => (
+            <div
+              key={user.id}
+              className="p-3.5 rounded-xl flex items-center justify-between shadow-md"
+              style={{
+                background: 'var(--sheet-bg)',
+                border: '1px solid var(--sheet-border)',
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className="font-display text-white/50 text-xs w-6 text-center font-bold"
+                  style={{ fontVariantNumeric: 'tabular-nums' }}
+                >
+                  #{idx + 4}
+                </span>
+                <UserCircle size={24} className="text-white/60" />
+                <span className="font-display text-white text-xs">
+                  @{user.handle}
+                </span>
+              </div>
+
+              <span
+                className="text-xs font-bold text-white/80"
+                style={{ fontVariantNumeric: 'tabular-nums' }}
+              >
+                {boardType === 'hunters' ? `${user.xp} XP` : `${user.worth_received} votes`}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Pinned Current User Row at Bottom (High-Contrast Passport Ribbon) */}
+        {profile && (
           <div
-            key={user.id}
-            className="glass p-3 rounded-xl flex items-center justify-between"
+            className="absolute left-4 right-4 z-40 p-3.5 rounded-2xl flex items-center justify-between shadow-2xl"
+            style={{
+              bottom: 'calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--dock-gap))',
+              background: 'var(--sheet-bg)',
+              border: '2px solid var(--accent)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.7), 0 0 16px rgba(210,63,90,0.3)',
+            }}
           >
-            <div className="flex items-center gap-3">
-              <span className="font-display text-white/40 text-xs w-5 text-center">
-                #{idx + 4}
-              </span>
-              <UserCircle size={24} className="text-white/60" />
-              <span className="font-display text-white text-xs">
-                @{user.handle}
-              </span>
-            </div>
-
-            <span className="text-xs font-display text-white/80">
-              {boardType === 'hunters' ? `${user.xp} XP` : `${user.worth_received} votes`}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {/* Pinned Current User Row at Bottom */}
-      {profile && (
-        <div className="absolute bottom-16 left-0 right-0 p-3 bg-black/60 backdrop-blur-md border-t border-white/10 safe-bottom">
-          <div className="max-w-md mx-auto flex items-center justify-between px-2">
             <div className="flex items-center gap-2.5">
-              <span className="px-2 py-0.5 rounded text-[10px] font-display bg-[#E8264C] text-white">
+              <span
+                className="px-2.5 py-0.5 rounded-md text-[10px] font-display text-white font-bold"
+                style={{ background: 'var(--accent)' }}
+              >
                 YOU
               </span>
-              <span className="font-display text-white text-xs">
+              <span className="font-display text-white text-xs font-bold">
                 @{profile.handle}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-display text-[var(--color-legendary)]">
+              <span
+                className="text-xs font-display text-[var(--legendary)] font-bold"
+                style={{ fontVariantNumeric: 'tabular-nums' }}
+              >
                 {profile.xp} XP
               </span>
-              <span className="text-[11px] text-white/50">
+              <span className="text-[11px] text-white/60 font-body">
                 • {profile.unlock_count} notes
               </span>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

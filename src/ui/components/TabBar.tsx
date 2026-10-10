@@ -26,12 +26,12 @@ const TABS = [
 ] as const;
 
 export const TabBar: React.FC<TabBarProps> = ({ active, onTabChange }) => {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
 
   return (
     <nav className="tab-bar" role="tablist" aria-label="Main navigation">
       {TABS.map(({ id, label, icon: Icon, path }) => {
-        const isActive = active === id;
+        const isActive = active === id || location === path || (path === '/' && location === '');
         return (
           <button
             key={id}
@@ -48,7 +48,7 @@ export const TabBar: React.FC<TabBarProps> = ({ active, onTabChange }) => {
             <Icon
               size={22}
               weight={isActive ? 'duotone' : 'regular'}
-              color={isActive ? 'var(--hanko)' : 'currentColor'}
+              color={isActive ? 'var(--accent)' : 'currentColor'}
             />
             <span>{label}</span>
           </button>

@@ -1,7 +1,7 @@
 /* ============================================================
  * THEY WERE HERE — Me Tab (P0)
- * User profile, preferences, sound/haptic toggles, safety sheet,
- * and hidden Stage Mode (5 taps on logo) for demo/judging.
+ * Traveller Passport Profile, Day/Night Theme Switcher,
+ * Sound/Haptic toggles, Safety Sheet, and Stage Mode for judges.
  * ============================================================ */
 
 import { useState } from 'react';
@@ -14,6 +14,10 @@ import {
   Compass,
   ArrowClockwise,
   Check,
+  Sun,
+  Moon,
+  Clock,
+  Sparkle,
 } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import { APP_NAME } from '@/contracts/types';
@@ -41,12 +45,15 @@ export function MeTab() {
   const isSimulated = useAppStore((s) => s.isSimulated);
   const setSimulated = useAppStore((s) => s.setSimulated);
   const setPosition = useAppStore((s) => s.setPosition);
+  const themeMode = useAppStore((s) => s.themeMode);
+  const setThemeMode = useAppStore((s) => s.setThemeMode);
+  const activeTheme = useAppStore((s) => s.activeTheme);
 
   const [logoTaps, setLogoTaps] = useState(0);
   const [showStageControls, setShowStageControls] = useState(isSimulated);
   const [showSafetySheet, setShowSafetySheet] = useState(false);
 
-  // Hidden 5 taps on logo activates Stage Mode (Part 8.5)
+  // Hidden 5 taps on logo activates Stage Mode for judges
   const handleLogoTap = () => {
     const next = logoTaps + 1;
     setLogoTaps(next);
@@ -89,19 +96,32 @@ export function MeTab() {
       }}
     >
       <div className="safe-top px-5 pt-6 pb-28 max-w-md mx-auto w-full flex flex-col gap-5">
-        {/* Profile Card */}
+        {/* Traveller Passport ID Card (Photomontage Stationery Aesthetic) */}
         <div
-          className="glass p-5 rounded-2xl flex items-center justify-between relative overflow-hidden"
+          className="p-5 rounded-2xl flex items-center justify-between relative overflow-hidden shadow-xl"
           style={{
-            border: '1px solid rgba(255, 255, 255, 0.15)',
+            background: 'var(--sheet-bg)',
+            border: '2px solid rgba(255, 255, 255, 0.15)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
           }}
         >
-          <div className="flex items-center gap-3.5">
+          {/* Subtle Vintage Postmark / Seal */}
+          <div
+            className="absolute -right-4 -bottom-4 w-28 h-28 rounded-full border-2 border-dashed pointer-events-none opacity-15 flex items-center justify-center"
+            style={{ borderColor: 'var(--accent)', transform: 'rotate(-15deg)' }}
+          >
+            <span className="text-[10px] font-display uppercase tracking-widest text-center">
+              PASSPORT • VERIFIED
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3.5 relative z-10">
             <div
-              className="w-14 h-14 rounded-full flex items-center justify-center"
+              className="w-14 h-14 rounded-full flex items-center justify-center shrink-0"
               style={{
-                background: 'var(--color-hanko)',
-                boxShadow: '0 0 16px rgba(232, 38, 76, 0.4)',
+                background: 'var(--accent)',
+                boxShadow: '0 0 16px rgba(210, 63, 90, 0.45)',
+                border: '2px solid #fff',
               }}
             >
               <UserCircle size={40} color="white" />
@@ -111,54 +131,104 @@ export function MeTab() {
               <div className="flex items-center gap-2">
                 <h2
                   className="font-display text-white"
-                  style={{ fontSize: 'var(--font-size-base)' }}
+                  style={{ fontSize: 'var(--text-base)' }}
                 >
                   @{profile?.handle ?? 'traveller'}
                 </h2>
                 <button
                   onClick={handleRerollHandle}
-                  className="p-1 rounded text-white/50 hover:text-white hover:bg-white/10 cursor-pointer"
-                  title="Reroll handle (up to 3 times)"
+                  className="p-1 rounded text-white/50 hover:text-white hover:bg-white/10 cursor-pointer transition-colors"
+                  title="Reroll traveller handle"
+                  aria-label="Reroll traveller handle"
                 >
                   <ArrowClockwise size={14} />
                 </button>
               </div>
-              <p
-                className="text-xs text-white/60 mt-0.5"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                Anonymous Traveller • Level 2 Explorer
+              <p className="text-xs text-white/60 mt-0.5">
+                Anonymous Traveller • Rank #2 Explorer
               </p>
             </div>
           </div>
 
-          <div className="text-right">
-            <span className="font-display text-lg text-[var(--color-legendary)] block">
+          <div className="text-right relative z-10">
+            <span
+              className="font-display text-xl text-[var(--legendary)] block"
+              style={{ fontVariantNumeric: 'tabular-nums' }}
+            >
               {profile?.xp ?? 0}
             </span>
-            <span className="text-[10px] text-white/50 uppercase">XP Gained</span>
+            <span className="text-[10px] text-white/50 uppercase tracking-wider">XP gained</span>
           </div>
         </div>
 
-        {/* Preferences Section */}
+        {/* Day / Night Theme Selector (Step 7 requirement) */}
         <div className="flex flex-col gap-2">
-          <span className="font-display text-xs text-white/50 uppercase px-1">
-            Preferences
+          <span className="text-xs font-bold text-white/60 px-1 font-display">
+            Map Atmosphere & Appearance
           </span>
 
-          <div className="glass rounded-xl overflow-hidden divide-y divide-white/10">
+          <div
+            className="p-1.5 rounded-2xl flex items-center gap-1.5"
+            style={{
+              background: 'var(--sheet-bg)',
+              border: '1px solid var(--sheet-border)',
+            }}
+          >
+            {[
+              { id: 'auto', label: 'Auto (Sun)', icon: Clock, desc: 'Follows sunrise & sunset' },
+              { id: 'day', label: 'Day', icon: Sun, desc: 'Warm paper map for daylight' },
+              { id: 'night', label: 'Night', icon: Moon, desc: 'Deep ink glowing radar' },
+            ].map((t) => {
+              const isSelected = themeMode === t.id;
+              const Icon = t.icon;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setThemeMode(t.id as 'auto' | 'day' | 'night')}
+                  className="flex-1 py-2 px-2.5 rounded-xl flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer"
+                  style={{
+                    background: isSelected ? 'var(--accent)' : 'transparent',
+                    color: isSelected ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)',
+                    boxShadow: isSelected ? '0 2px 8px rgba(210,63,90,0.3)' : 'none',
+                  }}
+                >
+                  <Icon size={14} weight={isSelected ? 'bold' : 'regular'} />
+                  <span>{t.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="text-[11px] text-white/50 px-2">
+            Active theme: <strong className="text-white capitalize">{activeTheme}</strong> mode
+          </div>
+        </div>
+
+        {/* Audio & Haptic Immersion */}
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-bold text-white/60 px-1 font-display">
+            Audio & Feedback
+          </span>
+
+          <div
+            className="rounded-2xl overflow-hidden divide-y divide-white/10"
+            style={{
+              background: 'var(--sheet-bg)',
+              border: '1px solid var(--sheet-border)',
+            }}
+          >
             {/* Sound Toggle */}
             <div className="p-3.5 flex items-center justify-between">
               <div className="flex items-center gap-3 text-white">
-                <SpeakerHigh size={20} color="var(--color-rare)" />
-                <span className="text-sm font-medium">Sound Effects</span>
+                <SpeakerHigh size={20} color="var(--reach)" />
+                <span className="text-sm font-medium">Sound effects</span>
               </div>
               <button
                 onClick={toggleSound}
                 className="w-11 h-6 rounded-full transition-colors relative cursor-pointer"
                 style={{
-                  background: soundEnabled ? 'var(--color-mint)' : 'rgba(255, 255, 255, 0.2)',
+                  background: soundEnabled ? 'var(--mint)' : 'rgba(255, 255, 255, 0.2)',
                 }}
+                aria-label="Toggle sound effects"
               >
                 <div
                   className="w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform"
@@ -172,15 +242,16 @@ export function MeTab() {
             {/* Music Toggle */}
             <div className="p-3.5 flex items-center justify-between">
               <div className="flex items-center gap-3 text-white">
-                <MusicNote size={20} color="var(--color-rare)" />
-                <span className="text-sm font-medium">Ambient Music</span>
+                <MusicNote size={20} color="var(--reach)" />
+                <span className="text-sm font-medium">Ambient music</span>
               </div>
               <button
                 onClick={toggleMusic}
                 className="w-11 h-6 rounded-full transition-colors relative cursor-pointer"
                 style={{
-                  background: musicEnabled ? 'var(--color-mint)' : 'rgba(255, 255, 255, 0.2)',
+                  background: musicEnabled ? 'var(--mint)' : 'rgba(255, 255, 255, 0.2)',
                 }}
+                aria-label="Toggle ambient music"
               >
                 <div
                   className="w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform"
@@ -194,15 +265,16 @@ export function MeTab() {
             {/* Haptics Toggle */}
             <div className="p-3.5 flex items-center justify-between">
               <div className="flex items-center gap-3 text-white">
-                <Vibrate size={20} color="var(--color-rare)" />
-                <span className="text-sm font-medium">Haptic Feedback</span>
+                <Vibrate size={20} color="var(--reach)" />
+                <span className="text-sm font-medium">Haptic vibration</span>
               </div>
               <button
                 onClick={toggleHaptics}
                 className="w-11 h-6 rounded-full transition-colors relative cursor-pointer"
                 style={{
-                  background: hapticsEnabled ? 'var(--color-mint)' : 'rgba(255, 255, 255, 0.2)',
+                  background: hapticsEnabled ? 'var(--mint)' : 'rgba(255, 255, 255, 0.2)',
                 }}
+                aria-label="Toggle haptic feedback"
               >
                 <div
                   className="w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform"
@@ -215,38 +287,42 @@ export function MeTab() {
           </div>
         </div>
 
-        {/* Safety Sheet Trigger (Part 8.5 Screen 10) */}
+        {/* Safety & Guidelines */}
         <button
           onClick={() => setShowSafetySheet(true)}
-          className="glass p-3.5 rounded-xl flex items-center justify-between text-left cursor-pointer hover:bg-white/10"
+          className="p-3.5 rounded-xl flex items-center justify-between text-left cursor-pointer hover:bg-white/10 transition-colors"
+          style={{
+            background: 'var(--sheet-bg)',
+            border: '1px solid var(--sheet-border)',
+          }}
         >
           <div className="flex items-center gap-3 text-white">
-            <ShieldCheck size={20} color="var(--color-mint)" />
+            <ShieldCheck size={20} color="var(--mint)" />
             <div>
-              <span className="text-sm font-medium block">Safety & Community Guidelines</span>
+              <span className="text-sm font-medium block">Safety & community guidelines</span>
               <span className="text-xs text-white/50">Outdoor travel rules & honest limits</span>
             </div>
           </div>
         </button>
 
-        {/* Stage Mode (Simulation for Demo / Judging) */}
+        {/* Stage Mode (Judge / Demo Simulator) */}
         {showStageControls && (
           <div
-            className="p-4 rounded-xl flex flex-col gap-3 animate-fade-in"
+            className="p-4 rounded-xl flex flex-col gap-3"
             style={{
-              background: 'rgba(232, 38, 76, 0.1)',
-              border: '1px solid var(--color-hanko)',
+              background: 'rgba(210, 63, 90, 0.12)',
+              border: '1.5px solid var(--accent)',
             }}
           >
             <div className="flex items-center justify-between">
-              <span className="font-display text-xs text-[var(--color-hanko)] uppercase">
+              <span className="font-display text-xs text-[var(--accent)] uppercase tracking-wider">
                 Stage Mode (Judge / Demo Simulator)
               </span>
               <button
                 onClick={() => setSimulated(!isSimulated)}
-                className="text-xs px-2 py-1 rounded font-display"
+                className="text-xs px-2.5 py-1 rounded font-display"
                 style={{
-                  background: isSimulated ? 'var(--color-hanko)' : 'rgba(255, 255, 255, 0.2)',
+                  background: isSimulated ? 'var(--accent)' : 'rgba(255, 255, 255, 0.2)',
                   color: 'white',
                 }}
               >
@@ -273,8 +349,9 @@ export function MeTab() {
             className="cursor-pointer active:scale-95 transition-transform"
             title="Tap 5 times for Stage Mode"
           >
-            <span className="font-display text-white/80 text-sm tracking-wider">
-              {APP_NAME}
+            <span className="font-display text-white/80 text-sm tracking-wider flex items-center gap-1.5">
+              <Sparkle size={14} color="var(--accent)" weight="fill" />
+              <span>{APP_NAME}</span>
             </span>
           </div>
 
@@ -282,20 +359,24 @@ export function MeTab() {
             Travel advice you can only read by standing where it was written. Built at LAYOVER 2026 by TinkerHub.
           </p>
 
-          <p className="text-[10px] text-white/30 mt-3">
+          <p className="text-[10px] text-white/30 mt-3 font-mono">
             Build: v0.1.0 • Device Local Storage (No PII)
           </p>
         </div>
       </div>
 
-      {/* Safety Sheet Modal (Part 8.5 Screen 10) */}
+      {/* Safety Sheet Modal */}
       {showSafetySheet && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
           onClick={() => setShowSafetySheet(false)}
         >
           <div
-            className="glass max-w-sm w-full p-6 rounded-2xl flex flex-col gap-4 text-left"
+            className="max-w-sm w-full p-6 rounded-2xl flex flex-col gap-4 text-left shadow-2xl"
+            style={{
+              background: 'var(--sheet-bg)',
+              border: '1px solid var(--sheet-border)',
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center pb-2 border-b border-white/10">
@@ -312,19 +393,19 @@ export function MeTab() {
 
             <ul className="text-xs text-white/80 space-y-2.5 font-body">
               <li className="flex items-start gap-2">
-                <Check size={16} color="var(--color-mint)" className="shrink-0 mt-0.5" />
+                <Check size={16} color="var(--mint)" className="shrink-0 mt-0.5" />
                 <span>Stay on public pedestrian paths. Never trespass on private property.</span>
               </li>
               <li className="flex items-start gap-2">
-                <Check size={16} color="var(--color-mint)" className="shrink-0 mt-0.5" />
+                <Check size={16} color="var(--mint)" className="shrink-0 mt-0.5" />
                 <span>Look up from your phone while walking near roads and transit stations.</span>
               </li>
               <li className="flex items-start gap-2">
-                <Check size={16} color="var(--color-mint)" className="shrink-0 mt-0.5" />
+                <Check size={16} color="var(--mint)" className="shrink-0 mt-0.5" />
                 <span>No coordinates or routes leave your phone — all proximity math runs locally.</span>
               </li>
               <li className="flex items-start gap-2">
-                <Check size={16} color="var(--color-mint)" className="shrink-0 mt-0.5" />
+                <Check size={16} color="var(--mint)" className="shrink-0 mt-0.5" />
                 <span>All content is moderated against harassment, spam, and offensive language.</span>
               </li>
             </ul>

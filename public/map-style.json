@@ -52,9 +52,9 @@
       "source": "openmaptiles",
       "source-layer": "park",
       "paint": {
-        "fill-color": "#1A2A30",
-        "fill-opacity": 0.7,
-        "fill-outline-color": "rgba(95, 208, 100, 1)"
+        "fill-color": "#142230",
+        "fill-opacity": 0.6,
+        "fill-outline-color": "#1A3040"
       }
     },
     {
@@ -63,7 +63,7 @@
       "source": "openmaptiles",
       "source-layer": "park",
       "paint": {
-        "line-color": "rgba(228, 241, 215, 1)",
+        "line-color": "#1A3040",
         "line-dasharray": [
           1,
           1.5
@@ -85,19 +85,8 @@
         "residential"
       ],
       "paint": {
-        "fill-color": [
-          "interpolate",
-          [
-            "linear"
-          ],
-          [
-            "zoom"
-          ],
-          9,
-          "hsla(0,3%,85%,0.84)",
-          12,
-          "hsla(35,57%,88%,0.49)"
-        ]
+        "fill-color": "#121736",
+        "fill-opacity": 0.5
       }
     },
     {
@@ -115,8 +104,8 @@
       ],
       "paint": {
         "fill-antialias": false,
-        "fill-color": "hsla(98,61%,72%,0.7)",
-        "fill-opacity": 0.4
+        "fill-color": "#142230",
+        "fill-opacity": 0.6
       }
     },
     {
@@ -134,8 +123,8 @@
       ],
       "paint": {
         "fill-antialias": false,
-        "fill-color": "rgba(176, 213, 154, 1)",
-        "fill-opacity": 0.3
+        "fill-color": "#142230",
+        "fill-opacity": 0.6
       }
     },
     {
@@ -226,7 +215,8 @@
         "cemetery"
       ],
       "paint": {
-        "fill-color": "hsl(75,37%,81%)"
+        "fill-color": "#131838",
+        "fill-opacity": 0.4
       }
     },
     {
@@ -243,7 +233,8 @@
         "hospital"
       ],
       "paint": {
-        "fill-color": "#fde"
+        "fill-color": "#131838",
+        "fill-opacity": 0.4
       }
     },
     {
@@ -260,7 +251,8 @@
         "school"
       ],
       "paint": {
-        "fill-color": "rgb(236,238,204)"
+        "fill-color": "#131838",
+        "fill-opacity": 0.4
       }
     },
     {
@@ -433,7 +425,8 @@
         "sand"
       ],
       "paint": {
-        "fill-color": "rgba(247, 239, 195, 1)"
+        "fill-color": "#131838",
+        "fill-opacity": 0.4
       }
     },
     {
@@ -1638,7 +1631,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#3A4880",
+        "line-color": "#1C234D",
         "line-width": [
           "interpolate",
           [
@@ -1698,7 +1691,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#252E5C",
+        "line-color": "#1C234D",
         "line-width": [
           "interpolate",
           [
@@ -1768,7 +1761,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#252E5C",
+        "line-color": "#1C234D",
         "line-width": [
           "interpolate",
           [
@@ -1847,7 +1840,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#252E5C",
+        "line-color": "#1C234D",
         "line-opacity": [
           "interpolate",
           [
@@ -1928,7 +1921,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#2E3A6E",
+        "line-color": "#1C234D",
         "line-width": [
           "interpolate",
           [
@@ -1983,7 +1976,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#3A4880",
+        "line-color": "#1C234D",
         "line-width": [
           "interpolate",
           [
@@ -2047,7 +2040,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#3A4880",
+        "line-color": "#1C234D",
         "line-width": [
           "interpolate",
           [
@@ -2119,7 +2112,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#252E5C",
+        "line-color": "#222B59",
         "line-dasharray": [
           1,
           0.7
@@ -2183,7 +2176,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#3A4880",
+        "line-color": "#2A3468",
         "line-width": [
           "interpolate",
           [
@@ -2243,7 +2236,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#252E5C",
+        "line-color": "#222B59",
         "line-width": [
           "interpolate",
           [
@@ -2313,7 +2306,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#252E5C",
+        "line-color": "#222B59",
         "line-width": [
           "interpolate",
           [
@@ -2384,7 +2377,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#252E5C",
+        "line-color": "#222B59",
         "line-width": [
           "interpolate",
           [
@@ -2442,7 +2435,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#2E3A6E",
+        "line-color": "#222B59",
         "line-width": [
           "interpolate",
           [
@@ -2499,7 +2492,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#3A4880",
+        "line-color": "#2A3468",
         "line-width": [
           "interpolate",
           [
@@ -2561,7 +2554,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#3A4880",
+        "line-color": "#2A3468",
         "line-width": [
           "interpolate",
           [
@@ -2610,7 +2603,7 @@
         ]
       ],
       "paint": {
-        "line-color": "#252E5C",
+        "line-color": "#222B59",
         "line-width": [
           "interpolate",
           [
@@ -2659,7 +2652,7 @@
         ]
       ],
       "paint": {
-        "line-color": "#252E5C",
+        "line-color": "#222B59",
         "line-dasharray": [
           0.2,
           8
@@ -2712,7 +2705,7 @@
         ]
       ],
       "paint": {
-        "line-color": "#252E5C",
+        "line-color": "#222B59",
         "line-width": [
           "interpolate",
           [
@@ -2761,7 +2754,7 @@
         ]
       ],
       "paint": {
-        "line-color": "#252E5C",
+        "line-color": "#222B59",
         "line-dasharray": [
           0.2,
           8
@@ -3895,21 +3888,9 @@
       "minzoom": 13,
       "maxzoom": 14,
       "paint": {
-        "fill-color": "#1E2550",
-        "fill-outline-color": [
-          "interpolate",
-          [
-            "linear"
-          ],
-          [
-            "zoom"
-          ],
-          13,
-          "hsla(35,6%,79%,0.32)",
-          14,
-          "hsl(35,6%,79%)"
-        ],
-        "fill-opacity": 0.8
+        "fill-color": "#161B3D",
+        "fill-outline-color": "#222A55",
+        "fill-opacity": 0.7
       }
     },
     {
@@ -3923,12 +3904,12 @@
           "get",
           "render_min_height"
         ],
-        "fill-extrusion-color": "hsl(35,8%,85%)",
+        "fill-extrusion-color": "#161B3D",
         "fill-extrusion-height": [
           "get",
           "render_height"
         ],
-        "fill-extrusion-opacity": 0.8
+        "fill-extrusion-opacity": 0.5
       }
     },
     {
@@ -4324,389 +4305,6 @@
       }
     },
     {
-      "id": "poi_r20",
-      "type": "symbol",
-      "source": "openmaptiles",
-      "source-layer": "poi",
-      "minzoom": 17,
-      "filter": [
-        "all",
-        [
-          "match",
-          [
-            "geometry-type"
-          ],
-          [
-            "MultiPoint",
-            "Point"
-          ],
-          true,
-          false
-        ],
-        [
-          ">=",
-          [
-            "get",
-            "rank"
-          ],
-          20
-        ]
-      ],
-      "layout": {
-        "icon-image": [
-          "match",
-          [
-            "get",
-            "subclass"
-          ],
-          [
-            "florist",
-            "furniture"
-          ],
-          [
-            "get",
-            "subclass"
-          ],
-          [
-            "get",
-            "class"
-          ]
-        ],
-        "text-anchor": "top",
-        "text-field": [
-          "case",
-          [
-            "has",
-            "name:nonlatin"
-          ],
-          [
-            "concat",
-            [
-              "get",
-              "name:latin"
-            ],
-            "\n",
-            [
-              "get",
-              "name:nonlatin"
-            ]
-          ],
-          [
-            "coalesce",
-            [
-              "get",
-              "name_en"
-            ],
-            [
-              "get",
-              "name"
-            ]
-          ]
-        ],
-        "text-font": [
-          "Noto Sans Italic"
-        ],
-        "text-max-width": 9,
-        "text-offset": [
-          0,
-          0.6
-        ],
-        "text-size": 12
-      },
-      "paint": {
-        "text-color": "#7A8FC4",
-        "text-halo-blur": 0.5,
-        "text-halo-color": "#0F1230",
-        "text-halo-width": 1.5
-      }
-    },
-    {
-      "id": "poi_r7",
-      "type": "symbol",
-      "source": "openmaptiles",
-      "source-layer": "poi",
-      "minzoom": 16,
-      "filter": [
-        "all",
-        [
-          "match",
-          [
-            "geometry-type"
-          ],
-          [
-            "MultiPoint",
-            "Point"
-          ],
-          true,
-          false
-        ],
-        [
-          ">=",
-          [
-            "get",
-            "rank"
-          ],
-          7
-        ],
-        [
-          "<",
-          [
-            "get",
-            "rank"
-          ],
-          20
-        ]
-      ],
-      "layout": {
-        "icon-image": [
-          "match",
-          [
-            "get",
-            "subclass"
-          ],
-          [
-            "florist",
-            "furniture"
-          ],
-          [
-            "get",
-            "subclass"
-          ],
-          [
-            "get",
-            "class"
-          ]
-        ],
-        "text-anchor": "top",
-        "text-field": [
-          "case",
-          [
-            "has",
-            "name:nonlatin"
-          ],
-          [
-            "concat",
-            [
-              "get",
-              "name:latin"
-            ],
-            "\n",
-            [
-              "get",
-              "name:nonlatin"
-            ]
-          ],
-          [
-            "coalesce",
-            [
-              "get",
-              "name_en"
-            ],
-            [
-              "get",
-              "name"
-            ]
-          ]
-        ],
-        "text-font": [
-          "Noto Sans Italic"
-        ],
-        "text-max-width": 9,
-        "text-offset": [
-          0,
-          0.6
-        ],
-        "text-size": 12
-      },
-      "paint": {
-        "text-color": "#7A8FC4",
-        "text-halo-blur": 0.5,
-        "text-halo-color": "#0F1230",
-        "text-halo-width": 1.5
-      }
-    },
-    {
-      "id": "poi_r1",
-      "type": "symbol",
-      "source": "openmaptiles",
-      "source-layer": "poi",
-      "minzoom": 15,
-      "filter": [
-        "all",
-        [
-          "match",
-          [
-            "geometry-type"
-          ],
-          [
-            "MultiPoint",
-            "Point"
-          ],
-          true,
-          false
-        ],
-        [
-          ">=",
-          [
-            "get",
-            "rank"
-          ],
-          1
-        ],
-        [
-          "<",
-          [
-            "get",
-            "rank"
-          ],
-          7
-        ]
-      ],
-      "layout": {
-        "icon-image": [
-          "match",
-          [
-            "get",
-            "subclass"
-          ],
-          [
-            "florist",
-            "furniture"
-          ],
-          [
-            "get",
-            "subclass"
-          ],
-          [
-            "get",
-            "class"
-          ]
-        ],
-        "text-anchor": "top",
-        "text-field": [
-          "case",
-          [
-            "has",
-            "name:nonlatin"
-          ],
-          [
-            "concat",
-            [
-              "get",
-              "name:latin"
-            ],
-            "\n",
-            [
-              "get",
-              "name:nonlatin"
-            ]
-          ],
-          [
-            "coalesce",
-            [
-              "get",
-              "name_en"
-            ],
-            [
-              "get",
-              "name"
-            ]
-          ]
-        ],
-        "text-font": [
-          "Noto Sans Italic"
-        ],
-        "text-max-width": 9,
-        "text-offset": [
-          0,
-          0.6
-        ],
-        "text-size": 12
-      },
-      "paint": {
-        "text-color": "#7A8FC4",
-        "text-halo-blur": 0.5,
-        "text-halo-color": "#0F1230",
-        "text-halo-width": 1.5
-      }
-    },
-    {
-      "id": "poi_transit",
-      "type": "symbol",
-      "source": "openmaptiles",
-      "source-layer": "poi",
-      "filter": [
-        "match",
-        [
-          "get",
-          "class"
-        ],
-        [
-          "airport",
-          "bus",
-          "rail"
-        ],
-        true,
-        false
-      ],
-      "layout": {
-        "icon-image": [
-          "to-string",
-          [
-            "get",
-            "class"
-          ]
-        ],
-        "icon-size": 0.7,
-        "text-anchor": "left",
-        "text-field": [
-          "case",
-          [
-            "has",
-            "name:nonlatin"
-          ],
-          [
-            "concat",
-            [
-              "get",
-              "name:latin"
-            ],
-            "\n",
-            [
-              "get",
-              "name:nonlatin"
-            ]
-          ],
-          [
-            "coalesce",
-            [
-              "get",
-              "name_en"
-            ],
-            [
-              "get",
-              "name"
-            ]
-          ]
-        ],
-        "text-font": [
-          "Noto Sans Italic"
-        ],
-        "text-max-width": 9,
-        "text-offset": [
-          0.9,
-          0
-        ],
-        "text-size": 12
-      },
-      "paint": {
-        "text-color": "#7A8FC4",
-        "text-halo-blur": 0.5,
-        "text-halo-color": "#0F1230",
-        "text-halo-width": 1.5
-      }
-    },
-    {
       "id": "highway-name-path",
       "type": "symbol",
       "source": "openmaptiles",
@@ -4944,313 +4542,6 @@
         "text-halo-blur": 0.5,
         "text-halo-width": 1.5,
         "text-halo-color": "#0F1230"
-      }
-    },
-    {
-      "id": "highway-shield-non-us",
-      "type": "symbol",
-      "source": "openmaptiles",
-      "source-layer": "transportation_name",
-      "minzoom": 8,
-      "filter": [
-        "all",
-        [
-          "<=",
-          [
-            "get",
-            "ref_length"
-          ],
-          6
-        ],
-        [
-          "match",
-          [
-            "geometry-type"
-          ],
-          [
-            "LineString",
-            "MultiLineString"
-          ],
-          true,
-          false
-        ],
-        [
-          "match",
-          [
-            "get",
-            "network"
-          ],
-          [
-            "us-highway",
-            "us-interstate",
-            "us-state"
-          ],
-          false,
-          true
-        ]
-      ],
-      "layout": {
-        "icon-image": [
-          "concat",
-          "road_",
-          [
-            "get",
-            "ref_length"
-          ]
-        ],
-        "icon-rotation-alignment": "viewport",
-        "icon-size": 1,
-        "symbol-placement": [
-          "step",
-          [
-            "zoom"
-          ],
-          "point",
-          11,
-          "line"
-        ],
-        "symbol-spacing": 200,
-        "text-field": [
-          "to-string",
-          [
-            "get",
-            "ref"
-          ]
-        ],
-        "text-font": [
-          "Noto Sans Regular"
-        ],
-        "text-rotation-alignment": "viewport",
-        "text-size": 10
-      }
-    },
-    {
-      "id": "highway-shield-us-interstate",
-      "type": "symbol",
-      "source": "openmaptiles",
-      "source-layer": "transportation_name",
-      "minzoom": 7,
-      "filter": [
-        "all",
-        [
-          "<=",
-          [
-            "get",
-            "ref_length"
-          ],
-          6
-        ],
-        [
-          "match",
-          [
-            "geometry-type"
-          ],
-          [
-            "LineString",
-            "MultiLineString"
-          ],
-          true,
-          false
-        ],
-        [
-          "match",
-          [
-            "get",
-            "network"
-          ],
-          [
-            "us-interstate"
-          ],
-          true,
-          false
-        ]
-      ],
-      "layout": {
-        "icon-image": [
-          "concat",
-          [
-            "get",
-            "network"
-          ],
-          "_",
-          [
-            "get",
-            "ref_length"
-          ]
-        ],
-        "icon-rotation-alignment": "viewport",
-        "icon-size": 1,
-        "symbol-placement": [
-          "step",
-          [
-            "zoom"
-          ],
-          "point",
-          7,
-          "line",
-          8,
-          "line"
-        ],
-        "symbol-spacing": 200,
-        "text-field": [
-          "to-string",
-          [
-            "get",
-            "ref"
-          ]
-        ],
-        "text-font": [
-          "Noto Sans Regular"
-        ],
-        "text-rotation-alignment": "viewport",
-        "text-size": 10
-      }
-    },
-    {
-      "id": "road_shield_us",
-      "type": "symbol",
-      "source": "openmaptiles",
-      "source-layer": "transportation_name",
-      "minzoom": 9,
-      "filter": [
-        "all",
-        [
-          "<=",
-          [
-            "get",
-            "ref_length"
-          ],
-          6
-        ],
-        [
-          "match",
-          [
-            "geometry-type"
-          ],
-          [
-            "LineString",
-            "MultiLineString"
-          ],
-          true,
-          false
-        ],
-        [
-          "match",
-          [
-            "get",
-            "network"
-          ],
-          [
-            "us-highway",
-            "us-state"
-          ],
-          true,
-          false
-        ]
-      ],
-      "layout": {
-        "icon-image": [
-          "concat",
-          [
-            "get",
-            "network"
-          ],
-          "_",
-          [
-            "get",
-            "ref_length"
-          ]
-        ],
-        "icon-rotation-alignment": "viewport",
-        "icon-size": 1,
-        "symbol-placement": [
-          "step",
-          [
-            "zoom"
-          ],
-          "point",
-          11,
-          "line"
-        ],
-        "symbol-spacing": 200,
-        "text-field": [
-          "to-string",
-          [
-            "get",
-            "ref"
-          ]
-        ],
-        "text-font": [
-          "Noto Sans Regular"
-        ],
-        "text-rotation-alignment": "viewport",
-        "text-size": 10
-      }
-    },
-    {
-      "id": "airport",
-      "type": "symbol",
-      "source": "openmaptiles",
-      "source-layer": "aerodrome_label",
-      "minzoom": 10,
-      "filter": [
-        "all",
-        [
-          "has",
-          "iata"
-        ]
-      ],
-      "layout": {
-        "icon-image": "airport_11",
-        "icon-size": 1,
-        "text-anchor": "top",
-        "text-field": [
-          "case",
-          [
-            "has",
-            "name:nonlatin"
-          ],
-          [
-            "concat",
-            [
-              "get",
-              "name:latin"
-            ],
-            "\n",
-            [
-              "get",
-              "name:nonlatin"
-            ]
-          ],
-          [
-            "coalesce",
-            [
-              "get",
-              "name_en"
-            ],
-            [
-              "get",
-              "name"
-            ]
-          ]
-        ],
-        "text-font": [
-          "Noto Sans Regular"
-        ],
-        "text-max-width": 9,
-        "text-offset": [
-          0,
-          0.6
-        ],
-        "text-optional": true,
-        "text-padding": 2,
-        "text-size": 12
-      },
-      "paint": {
-        "text-color": "#C8D8FF",
-        "text-halo-blur": 0.5,
-        "text-halo-color": "#0F1230",
-        "text-halo-width": 1.5
       }
     },
     {

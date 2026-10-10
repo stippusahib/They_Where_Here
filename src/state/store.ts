@@ -15,6 +15,7 @@ import type {
 import { DEFAULT_CONFIG } from '@/config/rules';
 import { VENUE_CENTER } from '@/config/venue';
 import { SEED_NOTES, INITIAL_PASSPORT_NOTES, type ExtendedNote } from '@/lib/seedNotes';
+import { resolveActiveTheme, applyTheme } from '@/ui/theme';
 
 interface AppState {
   /* ── Auth & Profile ───────────────────────────────────── */
@@ -86,6 +87,12 @@ interface AppState {
   setLayoverHours: (hours: number) => void;
   hasSeenLayoverOnboarding: boolean;
   setHasSeenLayoverOnboarding: (val: boolean) => void;
+
+  /* ── Theme Mode & Day/Night ───────────────────────────── */
+  themeMode: 'auto' | 'day' | 'night';
+  setThemeMode: (mode: 'auto' | 'day' | 'night') => void;
+  activeTheme: 'day' | 'night';
+  setActiveTheme: (theme: 'day' | 'night') => void;
 
   /* ── Audio Unlocked ───────────────────────────────────── */
   audioUnlocked: boolean;
@@ -199,9 +206,22 @@ export const useAppStore = create<AppState>((set, get) => ({
   distanceToNearest: 38,
   setDistanceToNearest: (distanceToNearest) => set({ distanceToNearest }),
 
-  // Sky
+  // Sky & Theme
   skyTheme: 'night',
   setSkyTheme: (skyTheme) => set({ skyTheme }),
+  themeMode: 'auto',
+  setThemeMode: (themeMode) => {
+    set({ themeMode });
+    const pos = get().position;
+    const active = resolveActiveTheme(themeMode, pos?.lat, pos?.lng);
+    set({ activeTheme: active });
+    applyTheme(active);
+  },
+  activeTheme: 'night',
+  setActiveTheme: (activeTheme) => {
+    set({ activeTheme });
+    applyTheme(activeTheme);
+  },
 
   // Preferences
   soundEnabled: true,

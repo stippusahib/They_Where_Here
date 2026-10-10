@@ -23,6 +23,7 @@ import { circlePolygon } from './geoShapes';
 import { haversineDistance, formatDistance } from '@/lib/geo';
 import type { ExtendedNote } from '@/lib/seedNotes';
 import type { GeoPosition } from '@/contracts/types';
+import { useAppStore } from '@/state/store';
 
 // Explicitly register standalone web worker to resolve Vite bundling
 setWorkerUrl('/maplibre-gl-worker.mjs');
@@ -57,6 +58,9 @@ export const MapView: React.FC<MapViewProps> = ({
   const lastAccuracyUpdateRef = useRef<number>(0);
   const lastNotesUpdateRef = useRef<number>(0);
 
+  const activeTheme = useAppStore((s) => s.activeTheme);
+  const currentStyleRef = useRef<string>(activeTheme === 'day' ? '/map-style-day.json' : '/map-style.json');
+
   const centerLng = position?.lng ?? VENUE_CENTER.lng;
   const centerLat = position?.lat ?? VENUE_CENTER.lat;
 
@@ -64,9 +68,12 @@ export const MapView: React.FC<MapViewProps> = ({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
+    const initialStyle = activeTheme === 'day' ? '/map-style-day.json' : '/map-style.json';
+    currentStyleRef.current = initialStyle;
+
     const map = new Map({
       container: containerRef.current,
-      style: '/map-style.json',
+      style: initialStyle,
       center: [centerLng, centerLat],
       zoom: 15.2,
       pitch: 0,
@@ -125,6 +132,18 @@ export const MapView: React.FC<MapViewProps> = ({
       isLoadedRef.current = false;
     };
   }, []);
+
+  // Switch map style when theme changes (Day/Night)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+
+    const targetStyle = activeTheme === 'day' ? '/map-style-day.json' : '/map-style.json';
+    if (currentStyleRef.current !== targetStyle) {
+      currentStyleRef.current = targetStyle;
+      map.setStyle(targetStyle);
+    }
+  }, [activeTheme]);
 
   // Sync GeoJSON notes source with distance calculation (throttled to 2s)
   const syncNotesSource = (force = false) => {
