@@ -25,6 +25,7 @@ interface AppState {
   /* ── App Config (from DB) ─────────────────────────────── */
   config: AppConfig;
   setConfig: (config: AppConfig) => void;
+  toggleArAndVoice: () => void;
 
   /* ── Location ─────────────────────────────────────────── */
   position: GeoPosition | null;
@@ -126,6 +127,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Config
   config: DEFAULT_CONFIG,
   setConfig: (config) => set({ config }),
+  toggleArAndVoice: () =>
+    set((state) => ({
+      config: {
+        ...state.config,
+        ar_and_voice_enabled: !(state.config.ar_and_voice_enabled ?? true),
+      },
+    })),
 
   // Location
   position: DEFAULT_POSITION,

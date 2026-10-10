@@ -59,6 +59,7 @@ export function CreateNoteModal() {
   const profile = useAppStore((s) => s.profile);
   const addNoteLocally = useAppStore((s) => s.addNoteLocally);
   const hapticsEnabled = useAppStore((s) => s.hapticsEnabled);
+  const arAndVoiceEnabled = useAppStore((s) => s.config.ar_and_voice_enabled ?? true);
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [rarity, setRarity] = useState<NoteRarity>('common');
@@ -75,7 +76,10 @@ export function CreateNoteModal() {
   const maxChars = rarity === 'legendary' ? 480 : rarity === 'rare' ? 240 : 120;
   const currentChars = countGraphemes(body);
   const isModerated = bodyAllowed(body);
-  const isBodyValid = (currentChars >= MIN_NOTE_CHARS || voiceAudioUrl !== null) && currentChars <= maxChars && isModerated;
+  const isBodyValid =
+    (currentChars >= MIN_NOTE_CHARS || (arAndVoiceEnabled && voiceAudioUrl !== null)) &&
+    currentChars <= maxChars &&
+    isModerated;
 
   const handleSeal = () => {
     if (!position || !profile) return;
@@ -313,23 +317,27 @@ export function CreateNoteModal() {
                     : `${currentChars} / ${maxChars} chars`}
                 </span>
                 <span style={{ color: 'var(--ink-300)' }}>
-                  Min {MIN_NOTE_CHARS} chars or voice note
+                  {arAndVoiceEnabled
+                    ? `Min ${MIN_NOTE_CHARS} chars or voice note`
+                    : `Min ${MIN_NOTE_CHARS} characters`}
                 </span>
               </div>
             </div>
 
-            {/* Voice Note Feature */}
-            <VoiceNoteRecorder
-              onAudioRecorded={(url, dur) => {
-                setVoiceAudioUrl(url);
-                setVoiceDuration(dur);
-              }}
-              onAudioCleared={() => {
-                setVoiceAudioUrl(null);
-                setVoiceDuration(0);
-              }}
-              initialAudioUrl={voiceAudioUrl ?? undefined}
-            />
+            {/* Voice Note Feature (guarded by config kill-switch) */}
+            {arAndVoiceEnabled && (
+              <VoiceNoteRecorder
+                onAudioRecorded={(url, dur) => {
+                  setVoiceAudioUrl(url);
+                  setVoiceDuration(dur);
+                }}
+                onAudioCleared={() => {
+                  setVoiceAudioUrl(null);
+                  setVoiceDuration(0);
+                }}
+                initialAudioUrl={voiceAudioUrl ?? undefined}
+              />
+            )}
 
             {/* Stamp selection */}
             <div>

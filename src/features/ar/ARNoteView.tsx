@@ -25,7 +25,6 @@ import {
   ShieldWarning,
   Footprints,
   PaperPlaneTilt,
-  Target,
 } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import { haversineDistance, bearing, formatDistance, toCardinal } from '@/lib/geo';
@@ -110,6 +109,10 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
   const lockedWorldHeadingRef = useRef(0);
   const [isReticleLockedOn, setIsReticleLockedOn] = useState(false);
   const wasReticleLockedRef = useRef(false);
+  const isReticleLockedOnRef = useRef(false);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const interactiveMeshesRef = useRef<THREE.Object3D[]>([]);
+  const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
 
   // ── 1. REAL-TIME ACCURACY TIER ASSESSMENT ──────────────────────
   const accuracyMeters = position?.accuracy ?? 15;
@@ -243,9 +246,38 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     };
   }, []);
 
+  // Aggressively terminate all camera hardware tracks to prevent mobile device overheating
+  const stopCameraHardware = () => {
+    if (mediaStreamRef.current) {
+      try {
+        mediaStreamRef.current.getTracks().forEach((track) => {
+          track.stop();
+        });
+      } catch (err) {
+        console.warn('[ARNoteView] Error stopping media tracks:', err);
+      }
+      mediaStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      try {
+        videoRef.current.pause();
+        videoRef.current.srcObject = null;
+      } catch (err) {
+        console.warn('[ARNoteView] Error detaching video stream:', err);
+      }
+    }
+    setCameraActive(false);
+  };
+
+  const handleExitAR = () => {
+    stopCameraHardware();
+    onClose();
+  };
+
   // ── 4. CAMERA STREAM INITIALIZATION ─────────────────────────────
   useEffect(() => {
-    let stream: MediaStream | null = null;
+    let isMounted = true;
+    let localStream: MediaStream | null = null;
 
     async function initCamera() {
       try {
@@ -253,7 +285,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
           throw new Error('Camera API unsupported');
         }
 
-        stream = await navigator.mediaDevices.getUserMedia({
+        localStream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: 'environment' },
             width: { ideal: 1920, min: 1280 },
@@ -263,12 +295,17 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
           audio: false,
         });
 
-        mediaStreamRef.current = stream;
+        if (!isMounted) {
+          localStream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        mediaStreamRef.current = localStream;
 
         if (videoRef.current) {
           videoRef.current.setAttribute('playsinline', 'true');
           videoRef.current.setAttribute('webkit-playsinline', 'true');
-          videoRef.current.srcObject = stream;
+          videoRef.current.srcObject = localStream;
           await videoRef.current.play();
           setCameraActive(true);
         }
@@ -281,10 +318,18 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     initCamera();
 
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      isMounted = false;
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
       }
-      mediaStreamRef.current = null;
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.srcObject = null;
+      }
     };
   }, []);
 
@@ -430,6 +475,8 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     noteGroup.add(beamMesh);
 
     scene.add(noteGroup);
+    cameraRef.current = camera;
+    interactiveMeshesRef.current = [noteMesh, sealMesh, qMarkMesh, ringMesh].filter(Boolean) as THREE.Object3D[];
 
     // ── Animation Loop ──
     let animId: number;
@@ -482,6 +529,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
 
       // Reticle Lock-On Detection
       const isLockedOn = Math.abs(diffAzimuth) < 13 && Math.abs(diffElevation) < 15;
+      isReticleLockedOnRef.current = isLockedOn;
       if (isLockedOn !== wasReticleLockedRef.current) {
         if (isLockedOn) hapticTap();
         wasReticleLockedRef.current = isLockedOn;
@@ -532,12 +580,74 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
+      cameraRef.current = null;
+      interactiveMeshesRef.current = [];
       if (renderer.domElement && container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
       }
       renderer.dispose();
     };
   }, [isMysteryLocked, isMine, isHere]);
+
+  // Handle tap when crosshairs are not aligned with target note
+  const handleMissedTap = () => {
+    if (!targetNote) return;
+
+    if (isBeyond5Min) {
+      showToast(
+        `>5 min walk (${distanceToTarget !== null ? formatDistance(distanceToTarget) : ''}). In AR mode, notes can only be touched within a 5-minute walk (≤375m). Use 2D Map!`
+      );
+      return;
+    }
+
+    if (!isHere) {
+      showToast(
+        `~${targetWalkingMinutes} min walk away (${distanceToTarget !== null ? formatDistance(distanceToTarget) : ''}). Walk within ${POKEMON_GO_TOUCH_RADIUS_METERS}m to touch and dispel shadow!`
+      );
+      return;
+    }
+
+    // Within 40m, but camera is not pointing at the note:
+    if (bearingDiff > 15) {
+      showToast('No note in crosshairs. Turn right to align with the note.');
+    } else if (bearingDiff < -15) {
+      showToast('No note in crosshairs. Turn left to align with the note.');
+    } else {
+      showToast('Aim center crosshairs directly at the note to touch it.');
+    }
+  };
+
+  // Canvas click handler with Raycasting and reticle verification
+  const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!targetNote) return;
+
+    const container = mountRef.current;
+    if (!container || !cameraRef.current) {
+      handleMissedTap();
+      return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1
+    );
+
+    // 1. Raycast direct click on 3D note geometry
+    raycasterRef.current.setFromCamera(mouse, cameraRef.current);
+    const intersects = raycasterRef.current.intersectObjects(interactiveMeshesRef.current, true);
+    const hit3DNote = intersects.length > 0;
+
+    // 2. Check center proximity and reticle lock-on
+    const distFromCenter = Math.hypot(mouse.x, mouse.y);
+    const hitCenterLock = distFromCenter < 0.35 && isReticleLockedOnRef.current;
+
+    if (hit3DNote || hitCenterLock) {
+      handleTouchNote();
+    } else {
+      handleMissedTap();
+    }
+  };
 
   // Handle touching / clicking the AR note
   const handleTouchNote = () => {
@@ -639,7 +749,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       {/* ── 3. THREE.JS 3D CANVAS VIEWPORT ─────────────────────────── */}
       <div
         ref={mountRef}
-        onClick={handleTouchNote}
+        onClick={handleCanvasClick}
         className="absolute inset-0 z-20 cursor-pointer pointer-events-auto"
       />
 
@@ -651,7 +761,10 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
             left: `${tagScreenPos.x}px`,
             top: `${tagScreenPos.y}px`,
           }}
-          onClick={handleTouchNote}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleTouchNote();
+          }}
         >
           {/* Postcard Glass Callout Card */}
           <div
@@ -795,9 +908,9 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
               title={isSurfaceLocked ? 'Unlock note to compass' : 'Anchor note to surface / desk in front'}
               aria-label="Toggle Surface Lock"
             >
-              <Target
+              <Crosshair
                 size={14}
-                weight={isSurfaceLocked ? 'fill' : 'bold'}
+                weight={isSurfaceLocked ? 'bold' : 'regular'}
                 color={isSurfaceLocked ? 'var(--mint)' : 'currentColor'}
               />
               <span className="hidden sm:inline">
@@ -821,7 +934,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
 
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleExitAR}
               className="w-8 h-8 rounded-full flex items-center justify-center text-[var(--ink-900)] bg-white/95 shadow-md border border-[#14143A]/15 cursor-pointer active:scale-95"
               aria-label="Exit AR Mode"
             >
@@ -937,8 +1050,17 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       {/* ── 6. CENTER RETICLE & PROXIMITY TOUCH INSTRUCTION ─────────── */}
       <div className="relative z-20 flex-1 flex flex-col items-center justify-center pointer-events-none">
         <div className="flex flex-col items-center gap-2">
-          <div
-            className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isReticleLockedOnRef.current) {
+                handleTouchNote();
+              } else {
+                handleMissedTap();
+              }
+            }}
+            className={`w-20 h-20 rounded-full flex items-center justify-center transition-all pointer-events-auto cursor-pointer active:scale-95 ${
               isReticleLockedOn
                 ? 'border-2 border-solid scale-105'
                 : 'border-2 border-dashed animate-spin-slow'
@@ -962,6 +1084,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
                 : '0 4px 16px rgba(15, 18, 48, 0.15)',
               background: isReticleLockedOn ? 'rgba(94, 226, 181, 0.12)' : 'transparent',
             }}
+            aria-label={isReticleLockedOn ? 'Touch Target Note' : 'Center Reticle'}
           >
             <Crosshair
               size={26}
@@ -975,10 +1098,10 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
                   ? 'var(--mint)'
                   : isMysteryLocked
                   ? '#00F2FE'
-                  : '#E8264C'
+                  : '#D23F5A'
               }
             />
-          </div>
+          </button>
 
           <span
             className="text-[10px] font-mono font-bold px-3 py-1 rounded-full shadow-md backdrop-blur-md transition-all"
@@ -1066,17 +1189,36 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
           {targetNote && canTouchOrRead ? (
             <button
               type="button"
-              onClick={handleTouchNote}
-              className="w-full h-12 slant-btn slant-btn--primary flex items-center justify-center gap-2 shadow-xl animate-pulse cursor-pointer text-xs font-bold"
+              onClick={() => {
+                if (!isReticleLockedOnRef.current) {
+                  handleMissedTap();
+                  return;
+                }
+                handleTouchNote();
+              }}
+              className={`w-full h-12 slant-btn flex items-center justify-center gap-2 shadow-xl cursor-pointer text-xs font-bold transition-all ${
+                isReticleLockedOn
+                  ? 'slant-btn--primary animate-pulse'
+                  : 'bg-white/95 text-[var(--ink-900)] border-2 border-[var(--mint)]'
+              }`}
             >
-              <Sparkle size={16} weight="fill" />
-              <span>
-                {isMine
-                  ? 'Inspect Your Note'
-                  : isMysteryLocked
-                  ? 'Dispel Shadow & Touch'
-                  : `Open ${targetNote.rarity.toUpperCase()} Note`}
-              </span>
+              {isReticleLockedOn ? (
+                <>
+                  <Sparkle size={16} weight="fill" />
+                  <span>
+                    {isMine
+                      ? 'Target Locked • Inspect Note'
+                      : isMysteryLocked
+                      ? 'Target Locked • Dispel Shadow'
+                      : `Target Locked • Open ${targetNote.rarity.toUpperCase()} Note`}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Crosshair size={16} weight="bold" color="var(--mint)" />
+                  <span>Aim Crosshair at Note to Touch</span>
+                </>
+              )}
             </button>
           ) : targetNote && !isBeyond5Min ? (
             <div className="w-full h-10 rounded-xl bg-white/95 text-[var(--ink-900)] border border-[var(--warn)] shadow-md flex items-center justify-center gap-1.5 text-xs font-bold px-3">
@@ -1091,7 +1233,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
           <div className="grid grid-cols-2 gap-2 items-center w-full">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleExitAR}
               className="h-11 rounded-xl flex items-center justify-center gap-1.5 bg-white text-[var(--ink-900)] font-headline font-bold text-xs shadow-md border border-[#14143A]/15 cursor-pointer active:scale-95 transition-transform"
             >
               <MapTrifold size={16} weight="bold" />

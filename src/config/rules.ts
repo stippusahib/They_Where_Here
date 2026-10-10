@@ -16,6 +16,7 @@ export const DEFAULT_CONFIG: Readonly<AppConfig> = {
   common_spacing_m: 150,
   rare_spacing_m: 5000,
   legendary_spacing_m: 20000,
+  ar_and_voice_enabled: true,
 };
 
 /** Event Mode overrides for hackathon venue — applied via SQL */

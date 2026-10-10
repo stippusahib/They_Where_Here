@@ -58,6 +58,7 @@ export const MapTab: React.FC = () => {
   const setActiveInspectNote = useAppStore((s) => s.setActiveInspectNote);
   const activeRevealNote = useAppStore((s) => s.activeRevealNote);
   const setActiveRevealNote = useAppStore((s) => s.setActiveRevealNote);
+  const arAndVoiceEnabled = useAppStore((s) => s.config.ar_and_voice_enabled ?? true);
 
   const [isListView, setIsListView] = useState(false);
   const [isLayoverSheetOpen, setIsLayoverSheetOpen] = useState(false);
@@ -289,22 +290,24 @@ export const MapTab: React.FC = () => {
 
             {/* Right HUD Controls: AR Mode, Sound & List Toggle (Always visible on mobile) */}
             <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto shrink-0 ml-auto z-10">
-              {/* Switch to AR Mode Button */}
-              <button
-                onClick={() => setIsARModeOpen(true)}
-                className="hud-chip flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full font-bold text-xs cursor-pointer shadow-md active:scale-95 transition-all shrink-0"
-                style={{
-                  background: '#FFFFFF',
-                  border: '1.5px solid var(--hanko)',
-                  color: 'var(--hanko)',
-                  boxShadow: '0 2px 10px rgba(232, 38, 76, 0.20)',
-                }}
-                title="Switch to AR Camera Mode (Pokémon GO & GTA Pickup Style)"
-                aria-label="Switch to AR Mode"
-              >
-                <Camera size={15} weight="fill" color="var(--hanko)" />
-                <span className="font-display font-black text-xs">AR<span className="hidden sm:inline">&nbsp;Mode</span></span>
-              </button>
+              {/* Switch to AR Mode Button (guarded by config kill-switch) */}
+              {arAndVoiceEnabled && (
+                <button
+                  onClick={() => setIsARModeOpen(true)}
+                  className="hud-chip flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full font-bold text-xs cursor-pointer shadow-md active:scale-95 transition-all shrink-0"
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1.5px solid var(--hanko)',
+                    color: 'var(--hanko)',
+                    boxShadow: '0 2px 10px rgba(210, 63, 90, 0.20)',
+                  }}
+                  title="Switch to AR Camera Mode (Pokémon GO & GTA Pickup Style)"
+                  aria-label="Switch to AR Mode"
+                >
+                  <Camera size={15} weight="fill" color="var(--hanko)" />
+                  <span className="font-display font-black text-xs">AR<span className="hidden sm:inline">&nbsp;Mode</span></span>
+                </button>
+              )}
 
               <button
                 onClick={toggleSound}
@@ -468,7 +471,7 @@ export const MapTab: React.FC = () => {
       <CreateNoteModal />
 
       {/* ── INTERACTIVE AR NOTE VIEW (Pokémon GO & GTA Pickups) ────── */}
-      {isARModeOpen && (
+      {isARModeOpen && arAndVoiceEnabled && (
         <ARNoteView
           onClose={() => setIsARModeOpen(false)}
           onOpenNote={(note) => {

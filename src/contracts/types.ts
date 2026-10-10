@@ -140,6 +140,7 @@ export interface AppConfig {
   common_spacing_m: number;
   rare_spacing_m: number;
   legendary_spacing_m: number;
+  ar_and_voice_enabled?: boolean;
 }
 
 /** Location provider interface — implemented by RealGPS, SimulatedGPS, Replay */
