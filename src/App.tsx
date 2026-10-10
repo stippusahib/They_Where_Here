@@ -12,6 +12,7 @@ import { TabBar } from '@/ui/components/TabBar';
 import { Banner } from '@/ui/components/Banner';
 import { useAppStore } from '@/state/store';
 import { resolveActiveTheme, applyTheme } from '@/ui/theme';
+import { Analytics } from '@vercel/analytics/react';
 
 /**
  * Root application component.
@@ -75,6 +76,7 @@ export function App() {
           <TabBar active={activeTab} onTabChange={setActiveTab} />
         </div>
       </div>
+      <Analytics />
     </Router>
   );
 }

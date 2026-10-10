@@ -266,8 +266,11 @@ export const MapTab: React.FC = () => {
       {/* ── SKY ATMOSPHERE OVERLAY ──────────────────────────────────── */}
       <div className="sky-layer" />
 
-      {/* ── TOP HUD ─────────────────────────────────────────────────── */}
-      <div className="fixed top-4 left-4 right-4 z-40 flex items-center justify-between safe-top pointer-events-none">
+      {/* ── 2D MAP HUD & ACTIONS (Hidden when in AR Mode) ─────────── */}
+      {!isARModeOpen && (
+        <>
+          {/* ── TOP HUD ─────────────────────────────────────────────────── */}
+          <div className="fixed top-4 left-4 right-4 z-40 flex items-center justify-between safe-top pointer-events-none">
         {/* Left & Center HUD chips */}
         <div className="flex items-center gap-2 pointer-events-auto">
           <HandleChip
@@ -450,6 +453,8 @@ export const MapTab: React.FC = () => {
         <PaperPlaneTilt size={18} weight="fill" />
         <span>Leave a note</span>
       </button>
+    </>
+  )}
 
       {/* ── MODALS & SHEETS ────────────────────────────────────────── */}
       <LayoverSheet

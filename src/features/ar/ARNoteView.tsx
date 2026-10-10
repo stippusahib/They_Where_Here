@@ -1,19 +1,13 @@
 /* ============================================================
  * THEY WERE HERE — Interactive AR Note-Dropping & Navigation
  * Pokémon GO & GTA-inspired Augmented Reality Explorer
- * Designed with Google Stitch & Dusk Postcard Design System
- * Features:
- * - Fullscreen live camera feed + simulated AR sky fallback
- * - 3D Visual Distinction:
- *   * MYSTERY LOCKED NOTE: Obsidian Shadow Silhouette with a glowing
- *     floating White Question Mark (?) and mystic aura.
- *   * PLACED-BY-YOU NOTE: Warm cream origami paper bird with red
- *     Hanko stamp seal and golden beacon.
- *   * UNLOCKED NOTE: Revealed collectible origami with rarity flair.
- * - Pokémon GO-style directional compass guide with bearing dial
- * - Proximity hot/cold indicator & shadow dispelling unlock trigger
- * - Tactical frosted glass bottom HUD with live GPS telemetry
- * - Direct In-AR GPS note dropping
+ * Designed with Google Stitch (Light Dusk Postcard & Tactical HUD)
+ *
+ * Requirements & Constraints:
+ * 1. Only notes within 5 minutes walking distance (≤375m) can be read or touched.
+ * 2. AR mode requires maximum GPS accuracy (real-time telemetry & calibration).
+ * 3. 3D distinction: Obsidian shadow silhouette + glowing white question mark (?)
+ *    for locked mystery notes; warm origami paper bird with Hanko seal for placed notes.
  * ============================================================ */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -25,19 +19,18 @@ import {
   Sparkle,
   Plus,
   Crosshair,
-  Camera,
   Sun,
-  SpeakerHigh,
   MapPin,
   Compass,
   ArrowRight,
-  LockKey,
-  SealCheck,
+  ShieldWarning,
+  Footprints,
 } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import { haversineDistance, bearing, formatDistance, toCardinal } from '@/lib/geo';
 import type { ExtendedNote } from '@/lib/seedNotes';
-import { RarityTag } from '@/ui/components/RarityTag';
+import { APP_NAME } from '@/contracts/types';
+import { AppLogo } from '@/ui/components/AppLogo';
 import { VoiceNotePlayer } from '@/ui/components/VoiceNotePlayer';
 
 interface ARNoteViewProps {
@@ -46,7 +39,10 @@ interface ARNoteViewProps {
   onDropNote: () => void;
 }
 
-// Generate high-resolution glowing White Question Mark texture
+/** 5-minute walking distance threshold: 75 m/min * 5 min = 375 meters */
+const FIVE_MIN_WALK_METERS = 375;
+
+/** Procedural glowing White Question Mark texture for mystery locked silhouettes */
 function createQuestionMarkTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
@@ -55,15 +51,15 @@ function createQuestionMarkTexture(): THREE.CanvasTexture {
   if (ctx) {
     ctx.clearRect(0, 0, 256, 256);
 
-    // Ethereal circular glow
+    // Ethereal circular aura
     const grad = ctx.createRadialGradient(128, 128, 15, 128, 128, 120);
-    grad.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
-    grad.addColorStop(0.4, 'rgba(110, 68, 255, 0.35)');
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0.65)');
+    grad.addColorStop(0.4, 'rgba(110, 68, 255, 0.40)');
     grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 256, 256);
 
-    // Bold, sharp white question mark
+    // Sharp white question mark (?)
     ctx.font = '900 170px "Space Grotesk", "Sora", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -96,30 +92,51 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
   const [torchActive, setTorchActive] = useState(false);
   const [deviceHeading, setDeviceHeading] = useState<number>(0);
   const [targetIndex, setTargetIndex] = useState<number>(0);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showAccuracyDialog, setShowAccuracyDialog] = useState(false);
 
-  // Filter notes sorted by distance
+  // ── 1. REAL-TIME ACCURACY TIER ASSESSMENT ──────────────────────
+  const accuracyMeters = position?.accuracy ?? 15;
+  const accuracyTier: 'high' | 'moderate' | 'low' =
+    accuracyMeters <= 15 ? 'high' : accuracyMeters <= 25 ? 'moderate' : 'low';
+
+  // ── 2. 5-MINUTE WALKING DISTANCE FILTERING ──────────────────────
   const sortedNotes = useMemo(() => {
     if (!position || notes.length === 0) return [];
     return [...notes]
-      .map((n) => ({
-        note: n,
-        dist: haversineDistance(position.lat, position.lng, n.lat, n.lng),
-        bear: bearing(position.lat, position.lng, n.lat, n.lng),
-      }))
+      .map((n) => {
+        const dist = haversineDistance(position.lat, position.lng, n.lat, n.lng);
+        return {
+          note: n,
+          dist,
+          bear: bearing(position.lat, position.lng, n.lat, n.lng),
+          walkingMinutes: Math.max(1, Math.round(dist / 75)),
+          isWithin5Min: dist <= FIVE_MIN_WALK_METERS,
+        };
+      })
       .sort((a, b) => a.dist - b.dist);
   }, [position, notes]);
 
-  const currentTarget = sortedNotes[targetIndex] ?? sortedNotes[0] ?? null;
+  // Notes within the 5-minute walking boundary
+  const notesWithin5Min = useMemo(() => {
+    return sortedNotes.filter((n) => n.isWithin5Min);
+  }, [sortedNotes]);
+
+  // Active target candidate pool: prioritzes notes within 5-min walk
+  const activePool = notesWithin5Min.length > 0 ? notesWithin5Min : sortedNotes;
+  const currentTarget = activePool[targetIndex] ?? activePool[0] ?? null;
   const targetNote = currentTarget ? currentTarget.note : null;
   const distanceToTarget = currentTarget ? currentTarget.dist : null;
   const targetBearing = currentTarget ? currentTarget.bear : 0;
+  const targetWalkingMinutes = currentTarget ? currentTarget.walkingMinutes : 1;
+  const isBeyond5Min = currentTarget ? !currentTarget.isWithin5Min : false;
 
   // Bearing difference relative to device heading (-180 to +180)
   const bearingDiff = useMemo(() => {
     return ((targetBearing - deviceHeading + 540) % 360) - 180;
   }, [targetBearing, deviceHeading]);
 
-  // Determine note relationship
+  // Note relationship
   const isMine = Boolean(
     targetNote && (targetNote.is_mine || targetNote.author_handle === profile?.handle)
   );
@@ -129,21 +146,29 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
   const isMysteryLocked = !isMine && !isUnlocked;
   const isHere = distanceToTarget !== null && (distanceToTarget <= 60 || isSimulated);
 
-  // Projected 2D screen coordinate of the 3D note for AR Tag
+  // Strict interaction rule: CAN ONLY READ OR TOUCH IF WITHIN 5 MIN & WITHIN UNLOCK REACH
+  const canTouchOrRead = Boolean(targetNote && !isBeyond5Min && isHere);
+
+  // Projected 2D screen coordinate for AR callout card
   const [tagScreenPos, setTagScreenPos] = useState<{ x: number; y: number; visible: boolean }>({
     x: 0,
     y: 0,
     visible: false,
   });
 
-  // Cycle to next nearby note in AR
+  // Cycle through available targets
   const handleNextTarget = () => {
-    if (sortedNotes.length > 1) {
-      setTargetIndex((prev) => (prev + 1) % sortedNotes.length);
+    if (activePool.length > 1) {
+      setTargetIndex((prev) => (prev + 1) % activePool.length);
     }
   };
 
-  // 1. Device Compass Orientation
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // ── 3. DEVICE ORIENTATION & COMPASS ─────────────────────────────
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
       const anyEvent = e as unknown as { webkitCompassHeading?: number };
@@ -158,14 +183,14 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     return () => window.removeEventListener('deviceorientation', handleOrientation);
   }, []);
 
-  // 2. Camera Stream Initialization
+  // ── 4. CAMERA STREAM INITIALIZATION ─────────────────────────────
   useEffect(() => {
     let stream: MediaStream | null = null;
 
     async function initCamera() {
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          throw new Error('Camera API not supported');
+          throw new Error('Camera API unsupported');
         }
 
         stream = await navigator.mediaDevices.getUserMedia({
@@ -185,7 +210,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
           setCameraActive(true);
         }
       } catch (err) {
-        console.warn('[ARNoteView] Camera denied/unsupported, using simulated AR sky:', err);
+        console.warn('[ARNoteView] Camera stream fallback to simulated AR viewport:', err);
         setCameraActive(false);
       }
     }
@@ -200,7 +225,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     };
   }, []);
 
-  // Toggle Torch/Flashlight if supported
+  // Toggle Torch/Flashlight if hardware supports it
   const toggleTorch = async () => {
     try {
       const stream = mediaStreamRef.current;
@@ -213,11 +238,11 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
         setTorchActive(nextState);
       }
     } catch (e) {
-      console.warn('Torch toggle not supported:', e);
+      console.warn('Torch not supported:', e);
     }
   };
 
-  // 3. Three.js 3D Scene (Shadow Silhouette vs Origami vs Unlocked)
+  // ── 5. THREE.JS 3D SCENE & RETICLE INTERACTION ──────────────────
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
@@ -225,7 +250,6 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     const width = container.clientWidth || window.innerWidth;
     const height = container.clientHeight || window.innerHeight;
 
-    // 3A. Scene & Camera
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(58, width / height, 0.1, 1000);
     camera.position.set(0, 0, 5.2);
@@ -235,7 +259,6 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     container.appendChild(renderer.domElement);
 
-    // 3B. Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 2.0);
     scene.add(ambientLight);
 
@@ -248,33 +271,31 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     glowLight.position.set(0, 0, 2);
     scene.add(glowLight);
 
-    // 3C. Collectible Note Group
     const noteGroup = new THREE.Group();
 
-    // ── GEOMETRY SETUP BASED ON NOTE STATE ──
+    // ── Note Mesh Setup ──
     let noteMesh: THREE.Mesh;
     let sealMesh: THREE.Mesh | null = null;
     let qMarkMesh: THREE.Mesh | null = null;
     const qMarkTexture = isMysteryLocked ? createQuestionMarkTexture() : null;
 
     if (isMysteryLocked) {
-      // 1. MYSTERY LOCKED: Obsidian Shadow Silhouette
+      // 1. Obsidian Mystery Locked Silhouette with Glowing ?
       const noteGeom = new THREE.OctahedronGeometry(1.2, 0);
       const noteMat = new THREE.MeshStandardMaterial({
         color: 0x14182e,
         emissive: 0x27194a,
-        emissiveIntensity: 0.6,
+        emissiveIntensity: 0.65,
         roughness: 0.7,
         metalness: 0.2,
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.92,
         flatShading: true,
       });
       noteMesh = new THREE.Mesh(noteGeom, noteMat);
       noteMesh.scale.set(1.0, 1.35, 0.35);
       noteGroup.add(noteMesh);
 
-      // Core Glowing White Question Mark (?)
       if (qMarkTexture) {
         const qGeom = new THREE.PlaneGeometry(1.2, 1.2);
         const qMat = new THREE.MeshBasicMaterial({
@@ -287,7 +308,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
         noteGroup.add(qMarkMesh);
       }
     } else {
-      // 2. PLACED BY YOU or UNLOCKED: Exquisite Folded Origami Note
+      // 2. Warm Folded Origami Bird with Hanko Seal
       const noteGeom = new THREE.OctahedronGeometry(1.15, 0);
       const noteMat = new THREE.MeshStandardMaterial({
         color: isMine ? 0xfff3d6 : 0xffffff,
@@ -301,7 +322,6 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       noteMesh.scale.set(1.0, 1.35, 0.32);
       noteGroup.add(noteMesh);
 
-      // Hanko Red Stamp Seal
       const sealGeom = new THREE.CylinderGeometry(0.36, 0.36, 0.45, 16);
       const sealMat = new THREE.MeshStandardMaterial({
         color: 0xe8264c,
@@ -314,15 +334,8 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       noteGroup.add(sealMesh);
     }
 
-    // Ground Shockwave Rings
-    const ringColor = isMysteryLocked
-      ? 0x6e44ff
-      : isMine
-      ? 0xffc93c
-      : isHere
-      ? 0x5ee2b5
-      : 0xe8264c;
-
+    // Ground Shockwave Ring
+    const ringColor = isMysteryLocked ? 0x6e44ff : isMine ? 0xffc93c : isHere ? 0x5ee2b5 : 0xe8264c;
     const ringGeom = new THREE.RingGeometry(1.6, 1.9, 32);
     const ringMat = new THREE.MeshBasicMaterial({
       color: ringColor,
@@ -335,7 +348,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     ringMesh.position.y = -2.3;
     noteGroup.add(ringMesh);
 
-    // Vertical Beacon Light Beam
+    // Vertical Beacon Pillar
     const beamColor = isMysteryLocked ? 0x9370db : isMine ? 0xffe4b5 : 0xffd6a5;
     const beamGeom = new THREE.CylinderGeometry(0.12, 1.4, 5.5, 16, 1, true);
     const beamMat = new THREE.MeshBasicMaterial({
@@ -348,109 +361,59 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     beamMesh.position.y = -0.5;
     noteGroup.add(beamMesh);
 
-    // Rising Particle Sparkles
-    const particleCount = 45;
-    const particleGeom = new THREE.BufferGeometry();
-    const particlePositions = new Float32Array(particleCount * 3);
-    const particleSpeeds = new Float32Array(particleCount);
-
-    for (let i = 0; i < particleCount; i++) {
-      particlePositions[i * 3] = (Math.random() - 0.5) * 2.8;
-      particlePositions[i * 3 + 1] = (Math.random() - 0.5) * 4.0;
-      particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 2.8;
-      particleSpeeds[i] = 0.01 + Math.random() * 0.02;
-    }
-
-    particleGeom.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-    const particleMat = new THREE.PointsMaterial({
-      color: isMysteryLocked ? 0x90e0ef : isMine ? 0xffc93c : 0xffffff,
-      size: 0.08,
-      transparent: true,
-      opacity: 0.8,
-    });
-    const particles = new THREE.Points(particleGeom, particleMat);
-    noteGroup.add(particles);
-
     scene.add(noteGroup);
 
-    // 3D Raycasting for interactive click on floating note
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-
-    const handleCanvasClick = (event: MouseEvent | TouchEvent) => {
-      const clientX = 'touches' in event ? event.touches[0]?.clientX ?? 0 : event.clientX;
-      const clientY = 'touches' in event ? event.touches[0]?.clientY ?? 0 : event.clientY;
-
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
-      const targets = [noteMesh];
-      if (sealMesh) targets.push(sealMesh);
-      if (qMarkMesh) targets.push(qMarkMesh);
-
-      const intersects = raycaster.intersectObjects(targets, true);
-
-      if (intersects.length > 0 && targetNote) {
-        onOpenNote(targetNote);
-      }
-    };
-
-    renderer.domElement.addEventListener('click', handleCanvasClick);
-
-    // Animation Loop: Hover Bobbing + Continuous 360° Spin
+    // ── Animation Loop ──
     let animId: number;
-    const clock = new THREE.Clock();
-    const tempVec = new THREE.Vector3();
+    let clock = new THREE.Clock();
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
+      const time = clock.getElapsedTime();
 
-      // Continuous 360° Spin
-      noteGroup.rotation.y = elapsed * 1.5;
+      // Slow 360 spin + smooth floating hover
+      noteMesh.rotation.y = time * 0.8;
+      noteMesh.rotation.x = Math.sin(time * 1.2) * 0.15;
+      noteMesh.position.y = Math.sin(time * 2.0) * 0.25;
 
-      // Slow Sinusoidal Bobbing Hover
-      noteGroup.position.y = Math.sin(elapsed * 2.2) * 0.35;
-
-      // Pulse ground ring
-      const pulseSpeed = isHere ? 6.0 : 3.5;
-      const pulseScale = 1.0 + Math.sin(elapsed * pulseSpeed) * 0.2;
-      ringMesh.scale.set(pulseScale, pulseScale, 1.0);
-      ringMat.opacity = 0.35 + Math.sin(elapsed * pulseSpeed) * 0.3;
-
-      // Question mark pulse
+      if (sealMesh) {
+        sealMesh.position.y = noteMesh.position.y;
+        sealMesh.rotation.y = noteMesh.rotation.y;
+      }
       if (qMarkMesh) {
-        const qScale = 1.0 + Math.sin(elapsed * 3.5) * 0.12;
-        qMarkMesh.scale.set(qScale, qScale, 1.0);
+        qMarkMesh.position.y = noteMesh.position.y;
+        qMarkMesh.rotation.y = time * 0.8;
       }
 
-      // Rising sparkles animation
-      const posAttr = particleGeom.attributes.position as THREE.BufferAttribute;
-      const arr = posAttr.array as Float32Array;
-      for (let i = 0; i < particleCount; i++) {
-        const speed = particleSpeeds[i] ?? 0.015;
-        const currentY = arr[i * 3 + 1] ?? 0;
-        arr[i * 3 + 1] = currentY > 2.5 ? -2.2 : currentY + speed;
-      }
-      posAttr.needsUpdate = true;
+      // Proximity pulse
+      const pulseSpeed = isHere ? 4.5 : 2.0;
+      const pulseScale = 1.0 + Math.sin(time * pulseSpeed) * (isHere ? 0.08 : 0.03);
+      noteGroup.scale.set(pulseScale, pulseScale, pulseScale);
 
-      // Dynamic position offset according to bearing difference
-      const targetX = Math.sin((bearingDiff * Math.PI) / 180) * 2.2;
-      noteGroup.position.x += (targetX - noteGroup.position.x) * 0.06;
+      // Expand ground shockwave rings
+      const ringScale = 1.0 + (time % 2.0) * 0.6;
+      ringMesh.scale.set(ringScale, ringScale, ringScale);
+      ringMat.opacity = Math.max(0, 0.8 - (time % 2.0) * 0.4);
 
-      // Project 3D note position to 2D screen coordinates for floating AR tag
-      tempVec.set(noteGroup.position.x, noteGroup.position.y + 1.6, 0);
-      tempVec.project(camera);
+      // Position noteGroup horizontally based on bearing difference
+      const clampedBearingDiff = THREE.MathUtils.clamp(bearingDiff, -90, 90);
+      const targetX = (clampedBearingDiff / 90) * 3.6;
+      noteGroup.position.x = THREE.MathUtils.lerp(noteGroup.position.x, targetX, 0.1);
 
-      const screenX = ((tempVec.x + 1) * width) / 2;
-      const screenY = ((-tempVec.y + 1) * height) / 2;
+      // Project 3D vector to 2D screen coordinate for callout HUD card
+      const tempV = new THREE.Vector3();
+      tempV.setFromMatrixPosition(noteMesh.matrixWorld);
+      tempV.y += 1.4;
+      tempV.project(camera);
+
+      const isBehind = tempV.z > 1;
+      const screenX = ((tempV.x + 1) * width) / 2;
+      const screenY = ((-tempV.y + 1) * height) / 2;
 
       setTagScreenPos({
         x: screenX,
         y: screenY,
-        visible: tempVec.z < 1,
+        visible: !isBehind && Math.abs(bearingDiff) < 65,
       });
 
       renderer.render(scene, camera);
@@ -472,37 +435,51 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
-      renderer.domElement.removeEventListener('click', handleCanvasClick);
-      if (renderer.domElement.parentNode) {
-        renderer.domElement.parentNode.removeChild(renderer.domElement);
+      if (renderer.domElement && container.contains(renderer.domElement)) {
+        container.removeChild(renderer.domElement);
       }
-      noteMesh.geometry.dispose();
-      (noteMesh.material as THREE.Material).dispose();
-      if (sealMesh) {
-        sealMesh.geometry.dispose();
-        (sealMesh.material as THREE.Material).dispose();
-      }
-      if (qMarkMesh) {
-        qMarkMesh.geometry.dispose();
-        (qMarkMesh.material as THREE.Material).dispose();
-      }
-      if (qMarkTexture) {
-        qMarkTexture.dispose();
-      }
-      ringGeom.dispose();
-      ringMat.dispose();
-      beamGeom.dispose();
-      beamMat.dispose();
-      particleGeom.dispose();
-      particleMat.dispose();
       renderer.dispose();
     };
-  }, [targetNote, bearingDiff, isHere, isMine, isUnlocked, isMysteryLocked, onOpenNote]);
+  }, [bearingDiff, isMysteryLocked, isMine, isHere]);
+
+  // Handle touching / clicking the AR note
+  const handleTouchNote = () => {
+    if (!targetNote) return;
+
+    if (isBeyond5Min) {
+      showToast(
+        `>5 min walk (${distanceToTarget !== null ? formatDistance(distanceToTarget) : ''}). In AR mode, notes can only be touched within a 5-minute walk (≤375m). Use 2D Map!`
+      );
+      return;
+    }
+
+    if (!isHere) {
+      showToast(
+        `~${targetWalkingMinutes} min walk away (${distanceToTarget !== null ? formatDistance(distanceToTarget) : ''}). Walk within 60m to touch and dispel shadow!`
+      );
+      return;
+    }
+
+    // Within 5 min and within 60m: Allowed!
+    onOpenNote(targetNote);
+  };
+
+  // Handle dropping note with maximum accuracy validation
+  const handleAttemptDrop = () => {
+    if (accuracyTier === 'low') {
+      setShowAccuracyDialog(true);
+    } else {
+      onDropNote();
+    }
+  };
 
   const targetCardinal = toCardinal(targetBearing);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-[#FAF7F0] flex flex-col safe-top safe-bottom animate-fade-in select-none">
+    <div
+      className="absolute inset-0 overflow-hidden bg-[#0F1230] flex flex-col justify-between safe-top safe-bottom select-none"
+      style={{ zIndex: 'var(--z-ar, 100)' }}
+    >
       {/* ── 1. BACKGROUND: LIVE CAMERA FEED OR SIMULATED AR SKY ────── */}
       <video
         ref={videoRef}
@@ -527,37 +504,65 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
             )`,
           }}
         >
-          {/* Simulated Horizon Perspective Grid */}
+          {/* Simulated Perspective Grid */}
           <div
-            className="absolute bottom-0 w-full h-3/5 opacity-40"
+            className="absolute inset-0 opacity-20 pointer-events-none"
             style={{
               backgroundImage:
-                'linear-gradient(to right, rgba(20,20,58,0.14) 1px, transparent 1px), linear-gradient(to bottom, rgba(20,20,58,0.14) 1px, transparent 1px)',
+                'linear-gradient(to right, rgba(15, 18, 48, 0.25) 1px, transparent 1px), linear-gradient(to bottom, rgba(15, 18, 48, 0.25) 1px, transparent 1px)',
               backgroundSize: '40px 40px',
-              perspective: '350px',
-              transform: 'rotateX(62deg)',
+              transform: 'perspective(400px) rotateX(60deg) translateY(80px)',
+              transformOrigin: 'bottom center',
             }}
           />
         </div>
       )}
 
-      {/* ── 2. THREE.JS 3D WEBGL OVERLAY ───────────────────────────── */}
-      <div ref={mountRef} className="absolute inset-0 z-10 pointer-events-auto" />
+      {/* ── 2. TACTICAL VIEWFINDER CORNER RETICLES & HORIZON GUIDE ─── */}
+      <div className="absolute top-16 left-4 w-4 h-4 border-t-2 border-l-2 border-white/50 pointer-events-none z-10" />
+      <div className="absolute top-16 right-4 w-4 h-4 border-t-2 border-r-2 border-white/50 pointer-events-none z-10" />
+      <div className="absolute bottom-28 left-4 w-4 h-4 border-b-2 border-l-2 border-white/50 pointer-events-none z-10" />
+      <div className="absolute bottom-28 right-4 w-4 h-4 border-b-2 border-r-2 border-white/50 pointer-events-none z-10" />
 
-      {/* ── 3. FLOATING AR BILLBOARD TAG (ABOVE 3D NOTE) ────────────── */}
+      {/* Artificial Horizon Pitch Guide */}
+      <div className="absolute top-[38%] left-4 right-4 h-px bg-white/20 pointer-events-none z-10 flex items-center justify-between px-2">
+        <span className="font-mono text-[8px] text-white/50 uppercase">AR 6DOF</span>
+        <div className="flex items-center gap-1">
+          <div className="w-1.5 h-1.5 rounded-full bg-[var(--mint)] shadow-xs" />
+          <div className="w-6 h-[1px] bg-white/40" />
+          <div className="w-2 h-2 border border-white/60 rotate-45" />
+          <div className="w-6 h-[1px] bg-white/40" />
+          <div className="w-1.5 h-1.5 rounded-full bg-[var(--mint)] shadow-xs" />
+        </div>
+        <span className="font-mono text-[8px] text-white/50 uppercase">
+          {Math.round(deviceHeading)}° {targetCardinal}
+        </span>
+      </div>
+
+      {/* ── 3. THREE.JS 3D CANVAS VIEWPORT ─────────────────────────── */}
+      <div
+        ref={mountRef}
+        onClick={handleTouchNote}
+        className="absolute inset-0 z-20 cursor-pointer pointer-events-auto"
+      />
+
+      {/* ── 4. FLOATING 2D AR CALLOUT CARD (ANCHORED TO 3D NOTE) ────── */}
       {targetNote && tagScreenPos.visible && (
         <div
-          onClick={() => onOpenNote(targetNote)}
-          className="absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer pointer-events-auto transition-transform active:scale-95"
+          className="absolute z-30 pointer-events-auto transform -translate-x-1/2 -translate-y-full transition-all duration-75 cursor-pointer active:scale-95"
           style={{
             left: `${tagScreenPos.x}px`,
-            top: `${Math.max(80, tagScreenPos.y)}px`,
+            top: `${tagScreenPos.y}px`,
           }}
+          onClick={handleTouchNote}
         >
+          {/* Postcard Glass Callout Card */}
           <div
-            className="px-3.5 py-2.5 rounded-2xl flex flex-col gap-1 shadow-xl border backdrop-blur-md animate-fade-in"
+            className="px-3.5 py-2.5 rounded-xl shadow-xl backdrop-blur-md flex flex-col gap-1 text-center border-2"
             style={{
-              background: isMysteryLocked ? 'rgba(20, 24, 46, 0.94)' : 'rgba(255, 255, 255, 0.94)',
+              background: isMysteryLocked
+                ? 'rgba(15, 18, 48, 0.94)'
+                : 'rgba(255, 255, 255, 0.96)',
               color: isMysteryLocked ? '#FFFFFF' : 'var(--ink-900)',
               borderColor: isMine
                 ? 'var(--legendary)'
@@ -565,190 +570,258 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
                 ? 'var(--mint)'
                 : isMysteryLocked
                 ? '#6E44FF'
-                : 'var(--paper-edge)',
-              boxShadow: isMysteryLocked
-                ? '0 8px 32px rgba(110, 68, 255, 0.4)'
-                : isHere
-                ? '0 8px 30px rgba(94, 226, 181, 0.35)'
-                : '0 8px 24px rgba(15, 18, 48, 0.12)',
+                : 'var(--hanko)',
             }}
           >
-            {/* Header badges */}
-            <div className="flex items-center gap-1.5">
-              {isMine ? (
-                <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FFC93C33] text-[#FFC93C]">
-                  <SealCheck size={12} weight="fill" /> PLACED BY YOU
-                </span>
-              ) : isMysteryLocked ? (
-                <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#6E44FF44] text-[#E0D7FF]">
-                  <LockKey size={12} weight="fill" /> SHADOW MEMO
-                </span>
-              ) : (
-                <RarityTag rarity={targetNote.rarity} />
-              )}
-
-              <span className={`text-[10px] font-mono font-bold ${isMysteryLocked ? 'text-white/70' : 'text-[var(--ink-500)]'}`}>
-                #{targetNote.id.slice(0, 4)}
+            {/* Tag Slanted Header */}
+            <div className="flex items-center justify-between gap-2">
+              <span
+                className="text-[9px] font-mono font-black uppercase px-1.5 py-0.5 rounded tracking-wide"
+                style={{
+                  background: isMine
+                    ? 'var(--legendary)'
+                    : isHere
+                    ? 'var(--mint)'
+                    : isMysteryLocked
+                    ? '#6E44FF'
+                    : 'var(--hanko)',
+                  color: '#0F1230',
+                }}
+              >
+                {isMine
+                  ? 'YOUR NOTE'
+                  : isMysteryLocked
+                  ? 'SHADOW MEMO'
+                  : `${targetNote.rarity.toUpperCase()} NOTE`}
               </span>
-
-              <span className={`text-[10px] ${isMysteryLocked ? 'text-white/60' : 'text-[var(--ink-500)]'}`}>
-                • {isMine ? '@you' : isMysteryLocked ? '??? (Locked)' : `@${targetNote.author_handle}`}
+              <span className="text-[9px] font-mono text-white/70">
+                {distanceToTarget !== null ? formatDistance(distanceToTarget) : '...'}
               </span>
             </div>
 
-            {/* Note Title or Mystery Clue */}
+            {/* Note title / Shadow Clue */}
             <span className="font-display text-xs max-w-[210px] truncate">
               {isMysteryLocked ? 'Shadow Clue: Encrypted Message' : targetNote.title}
             </span>
 
-            {/* Audio Indicator */}
-            {targetNote.audio_url && !isMysteryLocked && (
-              <span
-                className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full w-fit"
-                style={{ background: '#5EE2B525', color: '#187B57' }}
-              >
-                <SpeakerHigh size={11} weight="fill" />
-                <span>Voice Memo Attached</span>
-              </span>
-            )}
-
-            {/* Proximity / Unlock instructions */}
+            {/* Walking reach guidance */}
             <span
               className="text-[10px] font-mono font-bold"
               style={{
-                color: isMine
-                  ? '#FFC93C'
+                color: isBeyond5Min
+                  ? '#FF6B6B'
                   : isHere
                   ? '#5EE2B5'
-                  : isMysteryLocked
-                  ? '#00F2FE'
-                  : 'var(--hanko)',
+                  : '#FFC93C',
               }}
             >
-              {distanceToTarget !== null ? formatDistance(distanceToTarget) : '...'} away
-              {isMine
-                ? ' • TAP TO INSPECT'
+              {isBeyond5Min
+                ? `>5 MIN WALK (${targetWalkingMinutes}m) • CANNOT TOUCH`
                 : isHere
-                ? ' • DISPEL SHADOW'
-                : ' • Walk Within Range (<60m)'}
+                ? 'IN TOUCH RANGE • TAP TO REVEAL'
+                : `~${targetWalkingMinutes} MIN WALK • WALK WITHIN 60M`}
             </span>
           </div>
+
+          {/* Pointer line */}
+          <div className="w-0.5 h-4 bg-white mx-auto shadow-sm" />
         </div>
       )}
 
-      {/* ── 4. TOP HUD: TRACKING STATUS & POKÉMON GO COMPASS ───────── */}
-      <div className="relative z-30 flex flex-col gap-2 p-4 pointer-events-none">
-        {/* Top Control Bar */}
+      {/* ── 5. TOP HUD: STITCH HEADER & POKÉMON GO COMPASS STRIP ───── */}
+      <div className="relative z-30 flex flex-col gap-2 p-3 safe-top pointer-events-none">
+        {/* Top Header Bar */}
         <div className="flex items-center justify-between">
+          {/* Brand + AR Tracking Pill */}
           <div className="flex items-center gap-2 pointer-events-auto">
-            {/* Tracking Status Pill */}
-            <div
-              className="px-3 py-1.5 rounded-full flex items-center gap-2 text-xs font-bold shadow-md backdrop-blur-md"
-              style={{
-                background: 'rgba(255, 255, 255, 0.94)',
-                color: 'var(--ink-900)',
-                border: '1px solid #EADECA',
-              }}
-            >
-              <div className="w-2 h-2 rounded-full bg-[#5EE2B5] animate-ping" />
-              <Camera size={15} weight="fill" color="var(--hanko)" />
-              <span className="text-[11px] font-mono">AR 6DOF LOCKED</span>
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 backdrop-blur-md border border-[#14143A]/15 shadow-sm">
+              <AppLogo size={20} showWordmark={false} />
+              <span className="font-display font-black text-xs text-[var(--ink-900)] tracking-tight">
+                {APP_NAME}
+              </span>
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--hanko)] animate-pulse" />
             </div>
 
-            {/* Flashlight/Torch toggle */}
+            {/* GPS Accuracy Tier Pill */}
+            <div
+              className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold flex items-center gap-1.5 shadow-sm backdrop-blur-md"
+              style={{
+                background:
+                  accuracyTier === 'high'
+                    ? 'rgba(94, 226, 181, 0.20)'
+                    : accuracyTier === 'moderate'
+                    ? 'rgba(255, 201, 60, 0.20)'
+                    : 'rgba(232, 38, 76, 0.25)',
+                border: `1px solid ${
+                  accuracyTier === 'high'
+                    ? 'var(--mint)'
+                    : accuracyTier === 'moderate'
+                    ? 'var(--legendary)'
+                    : 'var(--hanko)'
+                }`,
+                color: '#FFFFFF',
+              }}
+              title="Real-time GPS Precision Rating"
+            >
+              <div
+                className={`w-1.5 h-1.5 rounded-full ${
+                  accuracyTier === 'high'
+                    ? 'bg-[var(--mint)]'
+                    : accuracyTier === 'moderate'
+                    ? 'bg-[var(--legendary)]'
+                    : 'bg-[var(--hanko)] animate-ping'
+                }`}
+              />
+              <span>
+                {accuracyTier === 'high'
+                  ? `±${Math.round(accuracyMeters)}m • HIGH PRECISION`
+                  : accuracyTier === 'moderate'
+                  ? `±${Math.round(accuracyMeters)}m • MODERATE`
+                  : `±${Math.round(accuracyMeters)}m • LOW GPS LOCK`}
+              </span>
+            </div>
+          </div>
+
+          {/* Right Controls: Torch & Close */}
+          <div className="flex items-center gap-1.5 pointer-events-auto">
             <button
               type="button"
               onClick={toggleTorch}
-              className="w-8 h-8 rounded-full flex items-center justify-center bg-white shadow-md border border-[#EADECA] text-[var(--ink-700)] cursor-pointer active:scale-95"
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-white/95 shadow-md border border-[#14143A]/15 text-[var(--ink-700)] cursor-pointer active:scale-95"
               title="Toggle Flashlight Torch"
               aria-label="Toggle Torch"
             >
-              <Sun size={16} weight={torchActive ? 'fill' : 'regular'} color={torchActive ? 'var(--hanko)' : 'currentColor'} />
+              <Sun
+                size={16}
+                weight={torchActive ? 'fill' : 'regular'}
+                color={torchActive ? 'var(--hanko)' : 'currentColor'}
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-[var(--ink-900)] bg-white/95 shadow-md border border-[#14143A]/15 cursor-pointer active:scale-95"
+              aria-label="Exit AR Mode"
+            >
+              <X size={16} weight="bold" />
             </button>
           </div>
-
-          {/* Close AR View */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--ink-900)] bg-white shadow-lg border border-[#EADECA] pointer-events-auto cursor-pointer active:scale-95 transition-transform"
-            aria-label="Exit AR Mode"
-          >
-            <X size={18} weight="bold" />
-          </button>
         </div>
 
-        {/* Pokémon GO-Style Directional Guide Banner with Target Switcher */}
+        {/* Dynamic Pokémon GO-Style Directional Guide Banner */}
         {targetNote && (
           <div
-            className="self-center mt-1 px-4 py-2.5 rounded-2xl flex items-center justify-between gap-3 shadow-xl backdrop-blur-md pointer-events-auto transition-all"
+            className="self-center mt-0.5 px-3.5 py-2 rounded-2xl flex items-center justify-between gap-3 shadow-xl backdrop-blur-md pointer-events-auto transition-all w-full max-w-sm"
             style={{
-              background: isMysteryLocked ? 'rgba(20, 24, 46, 0.94)' : 'rgba(255, 255, 255, 0.94)',
+              background: isMysteryLocked ? 'rgba(20, 24, 46, 0.94)' : 'rgba(255, 255, 255, 0.95)',
               color: isMysteryLocked ? '#FFFFFF' : 'var(--ink-900)',
               border: `2px solid ${
-                isMine ? 'var(--legendary)' : isHere ? 'var(--mint)' : isMysteryLocked ? '#6E44FF' : 'var(--hanko)'
+                isBeyond5Min
+                  ? '#FF6B6B'
+                  : isMine
+                  ? 'var(--legendary)'
+                  : isHere
+                  ? 'var(--mint)'
+                  : isMysteryLocked
+                  ? '#6E44FF'
+                  : 'var(--hanko)'
               }`,
-              maxWidth: '380px',
-              width: '100%',
             }}
           >
-            <div className="flex items-center gap-3">
-              {/* Smooth Rotating Navigation Arrow Needle */}
+            <div className="flex items-center gap-2.5">
+              {/* Rotating Compass Needle */}
               <div
-                className="w-8 h-8 rounded-full flex items-center justify-center transition-transform shadow-inner flex-shrink-0"
+                className="w-7 h-7 rounded-full flex items-center justify-center transition-transform shadow-inner flex-shrink-0"
                 style={{
-                  background: isHere ? '#5EE2B533' : isMysteryLocked ? '#6E44FF33' : '#E8264C22',
+                  background: isBeyond5Min
+                    ? '#FF6B6B33'
+                    : isHere
+                    ? '#5EE2B533'
+                    : isMysteryLocked
+                    ? '#6E44FF33'
+                    : '#E8264C22',
                   transform: `rotate(${bearingDiff}deg)`,
                 }}
               >
                 <NavigationArrow
-                  size={18}
+                  size={16}
                   weight="fill"
-                  color={isHere ? '#5EE2B5' : isMysteryLocked ? '#00F2FE' : 'var(--hanko)'}
+                  color={
+                    isBeyond5Min
+                      ? '#FF6B6B'
+                      : isHere
+                      ? '#5EE2B5'
+                      : isMysteryLocked
+                      ? '#00F2FE'
+                      : 'var(--hanko)'
+                  }
                 />
               </div>
 
               <div className="flex flex-col text-left">
-                <span className="font-display text-xs truncate max-w-[200px]">
-                  {distanceToTarget !== null ? formatDistance(distanceToTarget) : '...'} •{' '}
-                  {isMysteryLocked ? 'Shadow Note' : targetNote.title}
-                </span>
-                <span className={`text-[10px] font-mono font-bold flex items-center gap-1.5 ${isMysteryLocked ? 'text-white/70' : 'text-[var(--ink-500)]'}`}>
-                  <Compass size={12} weight="bold" />
-                  <span>Bearing {Math.round(targetBearing).toString().padStart(3, '0')}° {targetCardinal}</span>
-                  <span>• {isHere ? 'IN RANGE!' : isMine ? 'PLACED BY YOU' : 'NAVIGATING'}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-display text-xs truncate max-w-[170px]">
+                    {distanceToTarget !== null ? formatDistance(distanceToTarget) : '...'} •{' '}
+                    {isMysteryLocked ? 'Shadow Note' : targetNote.title}
+                  </span>
+                  {isBeyond5Min ? (
+                    <span className="bg-[#FF6B6B]/20 text-[#FF6B6B] font-mono text-[8px] font-black px-1.5 py-0.2 rounded-full uppercase">
+                      &gt;5 MIN
+                    </span>
+                  ) : (
+                    <span className="bg-[var(--mint)]/20 text-[var(--mint)] font-mono text-[8px] font-black px-1.5 py-0.2 rounded-full uppercase">
+                      ~{targetWalkingMinutes} MIN
+                    </span>
+                  )}
+                </div>
+
+                <span
+                  className={`text-[9px] font-mono font-bold flex items-center gap-1 mt-0.5 ${
+                    isMysteryLocked ? 'text-white/70' : 'text-[var(--ink-500)]'
+                  }`}
+                >
+                  <Compass size={11} weight="bold" />
+                  <span>
+                    Bearing {Math.round(targetBearing).toString().padStart(3, '0')}° {targetCardinal}
+                  </span>
+                  <span>• {isBeyond5Min ? 'TOO FAR FOR AR' : isHere ? 'IN RANGE!' : 'NAVIGATING'}</span>
                 </span>
               </div>
             </div>
 
-            {/* Cycle to next note if multiple exist */}
-            {sortedNotes.length > 1 && (
+            {/* Target Switcher if multiple notes in range */}
+            {activePool.length > 1 && (
               <button
                 type="button"
                 onClick={handleNextTarget}
-                className="px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border cursor-pointer active:scale-95 transition-transform"
+                className="px-2 py-1 rounded-lg text-[10px] font-mono font-bold flex items-center gap-1 border cursor-pointer active:scale-95 transition-transform"
                 style={{
                   background: isMysteryLocked ? '#2B3159' : '#FAF7F0',
                   color: isMysteryLocked ? '#FFFFFF' : 'var(--ink-900)',
                   borderColor: isMysteryLocked ? '#6E44FF' : '#EADECA',
                 }}
-                title="Switch to next nearby note"
+                title="Switch Target"
               >
-                <span>{targetIndex + 1}/{sortedNotes.length}</span>
-                <ArrowRight size={11} weight="bold" />
+                <span>
+                  {targetIndex + 1}/{activePool.length}
+                </span>
+                <ArrowRight size={10} weight="bold" />
               </button>
             )}
           </div>
         )}
       </div>
 
-      {/* ── 5. CENTER TARGET RETICLE ───────────────────────────────── */}
+      {/* ── 6. CENTER RETICLE & PROXIMITY TOUCH INSTRUCTION ─────────── */}
       <div className="relative z-20 flex-1 flex flex-col items-center justify-center pointer-events-none">
         <div className="flex flex-col items-center gap-2">
           <div
             className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center transition-all animate-spin-slow"
             style={{
-              borderColor: isHere
+              borderColor: isBeyond5Min
+                ? '#FF6B6B'
+                : isHere
                 ? 'var(--mint)'
                 : isMysteryLocked
                 ? '#00F2FE'
@@ -762,41 +835,81 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
           >
             <Crosshair
               size={26}
-              color={isHere ? 'var(--mint)' : isMysteryLocked ? '#00F2FE' : '#E8264C'}
+              color={
+                isBeyond5Min
+                  ? '#FF6B6B'
+                  : isHere
+                  ? 'var(--mint)'
+                  : isMysteryLocked
+                  ? '#00F2FE'
+                  : '#E8264C'
+              }
             />
           </div>
-          <span className="text-[11px] font-bold text-[var(--ink-900)] bg-white/90 backdrop-blur-md px-3 py-1 rounded-full shadow-md border border-[#EADECA]">
-            {isMine
-              ? 'YOUR NOTE • TAP TO VIEW STATS'
-              : isHere
-              ? 'TAP SHADOW TO DISPEL & REVEAL'
-              : 'Aim camera at floating object'}
+
+          <span
+            className="text-[10px] font-mono font-bold px-3 py-1 rounded-full shadow-md backdrop-blur-md"
+            style={{
+              background: isBeyond5Min
+                ? 'rgba(255, 107, 107, 0.90)'
+                : 'rgba(255, 255, 255, 0.92)',
+              color: isBeyond5Min ? '#FFFFFF' : 'var(--ink-900)',
+            }}
+          >
+            {isBeyond5Min
+              ? '> 5 MIN WALK • WALK CLOSER VIA 2D MAP'
+              : canTouchOrRead
+              ? isMine
+                ? 'YOUR NOTE • TAP TO INSPECT'
+                : 'TAP SHADOW TO DISPEL & TOUCH'
+              : `~${targetWalkingMinutes} MIN WALK • WALK WITHIN 60M TO TOUCH`}
           </span>
         </div>
       </div>
 
-      {/* ── 6. TACTICAL BOTTOM HUD DECK (STITCH FROSTED GLASS DECK) ── */}
-      <div className="relative z-30 p-4 pb-6 flex flex-col gap-3 pointer-events-auto">
-        {/* Live GPS Telemetry readout pill */}
+      {/* ── 7. FEEDBACK TOAST NOTIFICATION ─────────────────────────── */}
+      {toastMessage && (
+        <div className="absolute top-28 left-4 right-4 z-40 flex justify-center pointer-events-none animate-fade-in">
+          <div className="bg-[#0F1230]/95 text-white border-2 border-[var(--hanko)] px-4 py-2 rounded-xl text-xs font-mono font-bold shadow-2xl text-center max-w-xs">
+            {toastMessage}
+          </div>
+        </div>
+      )}
+
+      {/* ── 8. TACTICAL FROSTED GLASS BOTTOM HUD DECK ──────────────── */}
+      <footer className="relative z-30 p-3 pb-5 flex flex-col gap-2.5 pointer-events-auto max-w-sm mx-auto w-full">
+        {/* Live GPS Telemetry Readout Pill */}
         <div
-          className="self-center px-3 py-1 rounded-full text-[10px] font-mono font-bold flex items-center gap-2 shadow-sm backdrop-blur-md"
+          className="self-center px-3 py-1 rounded-full text-[9px] font-mono font-bold flex items-center gap-2 shadow-xs backdrop-blur-md"
           style={{
-            background: 'rgba(255, 255, 255, 0.90)',
-            border: '1px solid #EADECA',
+            background: 'rgba(255, 255, 255, 0.92)',
+            border: '1px solid #14143A25',
             color: 'var(--ink-700)',
           }}
         >
           <MapPin size={11} weight="fill" color="var(--hanko)" />
           <span>
-            GPS {position ? `${position.lat.toFixed(4)}°N, ${position.lng.toFixed(4)}°W` : 'Locating...'}
+            {position
+              ? `${position.lat.toFixed(4)}°N, ${position.lng.toFixed(4)}°W`
+              : 'GPS Acquiring...'}
           </span>
           <span>• ALT 18m</span>
-          <span>• ACC ±{position?.accuracy ? Math.round(position.accuracy) : 1}m</span>
+          <span
+            className={
+              accuracyTier === 'high'
+                ? 'text-[var(--mint)]'
+                : accuracyTier === 'moderate'
+                ? 'text-[var(--legendary)]'
+                : 'text-[var(--hanko)]'
+            }
+          >
+            • ACC ±{Math.round(accuracyMeters)}m
+          </span>
         </div>
 
-        {/* Audio Radar Preview if target note has audio and is unlocked */}
+        {/* Audio Radar Preview if target note has audio and is in range */}
         {targetNote?.audio_url && !isMysteryLocked && isHere && (
-          <div className="self-center w-full max-w-xs animate-fade-in">
+          <div className="self-center w-full animate-fade-in">
             <VoiceNotePlayer
               audioUrl={targetNote.audio_url}
               durationSeconds={targetNote.audio_duration}
@@ -804,46 +917,100 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
           </div>
         )}
 
-        {/* Actions bar */}
-        <div className="flex items-center gap-2.5">
-          {/* Quick toggle back to 2D Map */}
+        {/* Primary Action Buttons (2-Column Grid to prevent clipping) */}
+        <div className="grid grid-cols-12 gap-2 items-center w-full">
+          {/* Quick Return to 2D Map */}
           <button
             type="button"
             onClick={onClose}
-            className="px-3.5 py-3 rounded-xl flex items-center gap-2 bg-white text-[var(--ink-900)] font-bold text-xs shadow-md border border-[#EADECA] cursor-pointer active:scale-95 transition-transform"
+            className="col-span-4 h-12 rounded-xl flex items-center justify-center gap-1.5 bg-white text-[var(--ink-900)] font-headline font-bold text-xs shadow-md border border-[#14143A]/15 cursor-pointer active:scale-95 transition-transform"
           >
-            <MapTrifold size={17} weight="bold" />
+            <MapTrifold size={16} weight="bold" />
             <span>2D Map</span>
           </button>
 
-          {/* Primary CTA: Contextual based on note state */}
-          {targetNote && isHere ? (
+          {/* Contextual Primary Action */}
+          {targetNote && canTouchOrRead ? (
             <button
               type="button"
-              onClick={() => onOpenNote(targetNote)}
-              className="slant-btn slant-btn--primary flex-1 py-3.5 flex items-center justify-center gap-2 shadow-xl animate-pulse cursor-pointer"
+              onClick={handleTouchNote}
+              className="col-span-8 h-12 slant-btn slant-btn--primary flex items-center justify-center gap-2 shadow-xl animate-pulse cursor-pointer text-xs font-bold"
             >
-              <Sparkle size={18} weight="fill" />
+              <Sparkle size={16} weight="fill" />
               <span>
                 {isMine
                   ? 'Inspect Your Note'
                   : isMysteryLocked
-                  ? 'Dispel Shadow & Unlock'
+                  ? 'Dispel Shadow & Touch'
                   : `Open ${targetNote.rarity.toUpperCase()} Note`}
+              </span>
+            </button>
+          ) : targetNote && !isBeyond5Min ? (
+            <button
+              type="button"
+              onClick={handleTouchNote}
+              className="col-span-8 h-12 rounded-xl bg-white/95 text-[var(--ink-900)] border border-[var(--warn)] shadow-md flex items-center justify-center gap-1.5 cursor-pointer text-xs font-bold"
+            >
+              <Footprints size={16} weight="bold" color="var(--warn)" />
+              <span className="truncate">
+                Walk &lt;60m to Touch (~{targetWalkingMinutes} min)
               </span>
             </button>
           ) : (
             <button
               type="button"
-              onClick={onDropNote}
-              className="slant-btn slant-btn--primary flex-1 py-3.5 flex items-center justify-center gap-2 shadow-xl cursor-pointer"
+              onClick={handleAttemptDrop}
+              className="col-span-8 h-12 slant-btn slant-btn--primary flex items-center justify-center gap-1.5 shadow-xl cursor-pointer text-xs font-bold"
             >
-              <Plus size={18} weight="bold" />
-              <span>Drop Note at this Spot</span>
+              <Plus size={16} weight="bold" />
+              <span>Drop Note Here</span>
             </button>
           )}
         </div>
-      </div>
+      </footer>
+
+      {/* ── 9. ACCURACY WARNING MODAL (STITCH PROTOCOL) ─────────────── */}
+      {showAccuracyDialog && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-[#FAF7F0] border-2 border-[var(--line)] rounded-2xl p-5 max-w-xs w-full shadow-2xl flex flex-col gap-3 text-left">
+            <div className="flex items-center gap-2 text-[var(--hanko)]">
+              <ShieldWarning size={22} weight="fill" />
+              <span className="font-display font-extrabold text-sm text-[var(--ink-900)]">
+                HIGH AR ACCURACY REQUIRED
+              </span>
+            </div>
+
+            <p className="font-body text-xs text-[var(--ink-700)] leading-relaxed">
+              Current GPS accuracy is{' '}
+              <strong className="text-[var(--hanko)]">
+                ±{Math.round(accuracyMeters)}m
+              </strong>
+              . AR note placement requires maximum precision (ideally &lt;15m under
+              open sky) to anchor reliably in physical 3D space.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAccuracyDialog(false)}
+                className="px-3 py-2 rounded-lg text-xs font-bold text-[var(--ink-700)] bg-white border border-[#14143A]/20 cursor-pointer active:scale-95"
+              >
+                Wait for Lock
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAccuracyDialog(false);
+                  onDropNote();
+                }}
+                className="slant-btn slant-btn--primary px-3 py-2 text-xs font-bold cursor-pointer"
+              >
+                Drop Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

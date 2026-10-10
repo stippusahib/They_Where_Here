@@ -65,10 +65,13 @@
   --z-sky:     20;
   --z-orbs:    30;   /* MapLibre canvas is here */
   --z-hud:     40;
+  --z-fab:     45;
   --z-sheet:   50;
   --z-reveal:  60;
   --z-toast:   70;
   --z-banner:  80;
+  --z-onboarding: 90;
+  --z-ar:      100;
 
   /* Backwards compatibility aliases */
   --color-ink-900: var(--ink-900);
@@ -800,6 +803,7 @@ input[type="range"]::-webkit-slider-runnable-track {
   overflow: hidden;
   box-shadow: 0 0 0 1px rgba(20, 20, 58, 0.08), 0 20px 60px rgba(15, 18, 48, 0.12);
   background: #FFFFFF;
+  transform: translateZ(0);
 }
 
 @media (min-width: 768px) {
