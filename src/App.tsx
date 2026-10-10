@@ -13,6 +13,7 @@ import { Banner } from '@/ui/components/Banner';
 import { useAppStore } from '@/state/store';
 import { resolveActiveTheme, applyTheme } from '@/ui/theme';
 import { Analytics } from '@vercel/analytics/react';
+import { fetchLiveNotes, subscribeToLiveNotes } from '@/lib/liveNotes';
 
 /**
  * Root application component.
@@ -35,6 +36,15 @@ export function App() {
     setActiveTheme(active);
     applyTheme(active);
   }, [themeMode, position?.lat, position?.lng]);
+
+  // Real-time note synchronization across all players' devices
+  useEffect(() => {
+    fetchLiveNotes();
+    const unsubscribe = subscribeToLiveNotes();
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   return (
     <Router hook={useHashLocation}>

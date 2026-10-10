@@ -74,6 +74,11 @@ function createQuestionMarkTexture(): THREE.CanvasTexture {
   return texture;
 }
 
+const qZee = new THREE.Vector3(0, 0, 1);
+const qEuler = new THREE.Euler();
+const q0 = new THREE.Quaternion();
+const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+
 export const ARNoteView: React.FC<ARNoteViewProps> = ({
   onClose,
   onOpenNote,
@@ -96,17 +101,11 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showAccuracyDialog, setShowAccuracyDialog] = useState(false);
 
-  // 3D Gyroscope and Compass orientation refs for buttery-smooth 60fps spatial anchoring
-  const devicePitchRef = useRef<number>(78);
-  const deviceHeadingRef = useRef<number>(0);
-  const currentHeadingRef = useRef<number>(0);
-  const currentPitchRef = useRef<number>(78);
-  const targetBearingRef = useRef<number>(0);
-
-  // Surface Lock-In state (locks 3D note onto user's desk/surface in front of them)
-  const [isSurfaceLocked, setIsSurfaceLocked] = useState(false);
-  const isSurfaceLockedRef = useRef(false);
-  const lockedWorldHeadingRef = useRef(0);
+  // True 3D Device Orientation Camera Tracking refs
+  const targetCamQuatRef = useRef(new THREE.Quaternion());
+  const hasOrientDataRef = useRef(false);
+  const manualYawRef = useRef(0);
+  const manualPitchRef = useRef(0);
   const [isReticleLockedOn, setIsReticleLockedOn] = useState(false);
   const wasReticleLockedRef = useRef(false);
   const isReticleLockedOnRef = useRef(false);
@@ -147,15 +146,13 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
   const targetNote = currentTarget ? currentTarget.note : null;
   const distanceToTarget = currentTarget ? currentTarget.dist : null;
   const targetBearing = currentTarget ? currentTarget.bear : 0;
-  targetBearingRef.current = targetBearing;
   const targetWalkingMinutes = currentTarget ? currentTarget.walkingMinutes : 1;
   const isBeyond5Min = currentTarget ? !currentTarget.isWithin5Min : false;
 
   // Bearing difference relative to device heading (-180 to +180)
   const bearingDiff = useMemo(() => {
-    const effBear = isSurfaceLocked ? lockedWorldHeadingRef.current : targetBearing;
-    return ((effBear - deviceHeading + 540) % 360) - 180;
-  }, [targetBearing, deviceHeading, isSurfaceLocked]);
+    return ((targetBearing - deviceHeading + 540) % 360) - 180;
+  }, [targetBearing, deviceHeading]);
 
   // Note relationship
   const isMine = Boolean(
@@ -189,51 +186,61 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Toggle surface lock-in (pins object to current view center in real physical space)
-  const toggleSurfaceLock = () => {
-    if (!isSurfaceLockedRef.current) {
-      lockedWorldHeadingRef.current = currentHeadingRef.current;
-      isSurfaceLockedRef.current = true;
-      setIsSurfaceLocked(true);
-      hapticTap();
-      showToast('Note anchored in front of you! Pan phone to inspect.');
-    } else {
-      isSurfaceLockedRef.current = false;
-      setIsSurfaceLocked(false);
-      hapticTap();
-      showToast('Unlocked to compass bearing.');
+  // iOS Safari permission helper
+  const requestOrientationPermission = async () => {
+    if (
+      typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof (DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }).requestPermission === 'function'
+    ) {
+      try {
+        await (DeviceOrientationEvent as unknown as { requestPermission: () => Promise<string> }).requestPermission();
+      } catch (err) {
+        console.warn('[ARNoteView] Permission request:', err);
+      }
     }
   };
 
   // ── 3. DEVICE ORIENTATION & COMPASS (Physical Geomagnetic Lock) ──
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
+      let alpha = e.alpha ?? 0;
+      let beta = e.beta ?? 90;
+      let gamma = e.gamma ?? 0;
+
       const anyEvent = e as unknown as { webkitCompassHeading?: number };
-      let heading: number | null = null;
-
       if (typeof anyEvent.webkitCompassHeading === 'number') {
-        // iOS Safari gives 0-360 true compass heading directly:
-        heading = anyEvent.webkitCompassHeading;
-      } else if (typeof e.alpha === 'number') {
-        // Android / W3C standard: alpha rotates counter-clockwise from North
-        heading = (360 - e.alpha + 360) % 360;
+        alpha = anyEvent.webkitCompassHeading;
+        setDeviceHeading(Math.round(alpha));
+      } else {
+        const heading = (360 - alpha + 360) % 360;
+        setDeviceHeading(Math.round(heading));
       }
 
-      if (heading !== null && !isNaN(heading)) {
-        deviceHeadingRef.current = heading;
-        setDeviceHeading(heading);
-      }
+      const orient =
+        window.screen?.orientation?.angle ||
+        (window as unknown as { orientation?: number }).orientation ||
+        0;
 
-      if (typeof e.beta === 'number' && !isNaN(e.beta)) {
-        // e.beta represents pitch: ~75° to 90° when holding phone upright in hand
-        devicePitchRef.current = THREE.MathUtils.clamp(e.beta, 20, 160);
-      }
+      const aRad = THREE.MathUtils.degToRad(alpha);
+      const bRad = THREE.MathUtils.degToRad(beta);
+      const gRad = THREE.MathUtils.degToRad(gamma);
+      const oRad = THREE.MathUtils.degToRad(orient);
+
+      qEuler.set(bRad, aRad, -gRad, 'YXZ');
+      const rawQuat = new THREE.Quaternion().setFromEuler(qEuler);
+      rawQuat.multiply(q1);
+      rawQuat.multiply(q0.setFromAxisAngle(qZee, -oRad));
+
+      // Direct physical camera orientation matching the phone in the real world
+      targetCamQuatRef.current.copy(rawQuat);
+      hasOrientDataRef.current = true;
     };
 
     const targetWindow = window as unknown as EventTarget;
-    const isAbsoluteSupported = typeof (window as unknown as Record<string, unknown>).ondeviceorientationabsolute !== 'undefined';
+    const isAbsoluteSupported =
+      typeof (window as unknown as Record<string, unknown>).ondeviceorientationabsolute !==
+      'undefined';
 
-    // Use absolute orientation when supported (Android Chrome), fallback to deviceorientation
     if (isAbsoluteSupported) {
       targetWindow.addEventListener('deviceorientationabsolute', handleOrientation as EventListener);
     } else {
@@ -241,7 +248,10 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     }
 
     return () => {
-      targetWindow.removeEventListener('deviceorientationabsolute', handleOrientation as EventListener);
+      targetWindow.removeEventListener(
+        'deviceorientationabsolute',
+        handleOrientation as EventListener
+      );
       targetWindow.removeEventListener('deviceorientation', handleOrientation as EventListener);
     };
   }, []);
@@ -472,8 +482,15 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     });
     const beamMesh = new THREE.Mesh(beamGeom, beamMat);
     beamMesh.position.y = -0.5;
-    noteGroup.add(beamMesh);
 
+    // Position note solidly stuck in 3D world space (zero drifting with camera moves)
+    const R = 3.2; // 3.2m physical distance in world
+    const radBearing = THREE.MathUtils.degToRad(targetBearing);
+    // In Three.js world space: North is -Z, East is +X, South is +Z, West is -X
+    const noteX = R * Math.sin(radBearing);
+    const noteZ = -R * Math.cos(radBearing);
+    const noteY = -0.6; // Sitting on floor / table surface below eye level
+    noteGroup.position.set(noteX, noteY, noteZ);
     scene.add(noteGroup);
     cameraRef.current = camera;
     interactiveMeshesRef.current = [noteMesh, sealMesh, qMarkMesh, ringMesh].filter(Boolean) as THREE.Object3D[];
@@ -505,30 +522,17 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       ringMesh.scale.set(ringScale, ringScale, ringScale);
       ringMat.opacity = Math.max(0, 0.6 - (time % 2.5) * 0.24);
 
-      // ── Physical 1:1 3D World Space Placement ──
-      const targetH = deviceHeadingRef.current;
-      const targetP = devicePitchRef.current;
+      // Camera rotates with real-world phone movement (or drag fallback)
+      camera.quaternion.slerp(targetCamQuatRef.current, 0.25);
 
-      // Responsive smoothing (0.4 turns cleanly with phone, eliminating sluggish drifting)
-      const headingDiffToSmooth = ((targetH - currentHeadingRef.current + 540) % 360) - 180;
-      currentHeadingRef.current += headingDiffToSmooth * 0.4;
-      currentPitchRef.current = THREE.MathUtils.lerp(currentPitchRef.current, targetP, 0.4);
+      // Reticle Lock-On Detection (checks if camera is aiming directly at the note)
+      const camDir = new THREE.Vector3();
+      camera.getWorldDirection(camDir);
+      const noteNorm = noteGroup.position.clone().normalize();
+      const dot = camDir.dot(noteNorm);
+      const angleDeg = Math.acos(THREE.MathUtils.clamp(dot, -1, 1)) * (180 / Math.PI);
 
-      // Bearing difference between note physical coordinate and user view direction (-180 to +180)
-      const effectiveBearing = isSurfaceLockedRef.current
-        ? lockedWorldHeadingRef.current
-        : targetBearingRef.current;
-
-      const diffAzimuth = ((effectiveBearing - currentHeadingRef.current + 540) % 360) - 180;
-      const radH = (diffAzimuth * Math.PI) / 180;
-
-      // Pitch difference relative to eye level (~80 degrees when holding phone upright)
-      // Tilting phone UP (targetP > 80) shifts object DOWN (negative Y)
-      const diffElevation = currentPitchRef.current - 80;
-      const radP = (diffElevation * Math.PI) / 180;
-
-      // Reticle Lock-On Detection
-      const isLockedOn = Math.abs(diffAzimuth) < 13 && Math.abs(diffElevation) < 15;
+      const isLockedOn = angleDeg < 15;
       isReticleLockedOnRef.current = isLockedOn;
       if (isLockedOn !== wasReticleLockedRef.current) {
         if (isLockedOn) hapticTap();
@@ -536,21 +540,14 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
         setIsReticleLockedOn(isLockedOn);
       }
 
-      // True 1:1 Physical 3D Spatial Spherical Anchoring (4.0m world radius)
-      // Camera is at (0, 0, 0); object coordinates match real-world azimuth & elevation exactly
-      const R = 4.0;
-      noteGroup.position.x = R * Math.sin(radH) * Math.cos(radP);
-      noteGroup.position.y = -R * Math.sin(radP) - 0.25;
-      noteGroup.position.z = -R * Math.cos(radH) * Math.cos(radP);
-
       // Project 3D vector to 2D screen coordinate for callout HUD card
       const tempV = new THREE.Vector3();
       tempV.setFromMatrixPosition(noteMesh.matrixWorld);
       tempV.y += 1.3;
       tempV.project(camera);
 
-      // Object is in front of camera if z is negative, and on screen if projected NDC in [-1.05, 1.05]
-      const isInFront = noteGroup.position.z < -0.3;
+      // Object is in front of camera if dot > 0.15 (within ~80 degrees of line of sight)
+      const isInFront = dot > 0.15;
       const isOnScreen = isInFront && Math.abs(tempV.x) <= 1.05 && Math.abs(tempV.y) <= 1.05;
       const screenX = ((tempV.x + 1) * width) / 2;
       const screenY = ((-tempV.y + 1) * height) / 2;
@@ -566,6 +563,46 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
 
     animate();
 
+    // Touch / mouse drag looking fallback for devices without gyro or testing on PC
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+
+    const onPointerDown = (e: PointerEvent) => {
+      isDragging = true;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      requestOrientationPermission();
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!isDragging) return;
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+
+      // Only manually pan if gyroscope orientation data hasn't arrived
+      if (!hasOrientDataRef.current) {
+        manualYawRef.current -= dx * 0.004;
+        manualPitchRef.current = THREE.MathUtils.clamp(
+          manualPitchRef.current - dy * 0.004,
+          -Math.PI / 2.2,
+          Math.PI / 2.2
+        );
+        const euler = new THREE.Euler(manualPitchRef.current, manualYawRef.current, 0, 'YXZ');
+        targetCamQuatRef.current.setFromEuler(euler);
+      }
+    };
+
+    const onPointerUp = () => {
+      isDragging = false;
+    };
+
+    container.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+
     const handleResize = () => {
       if (!container) return;
       const w = container.clientWidth || window.innerWidth;
@@ -579,6 +616,9 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
 
     return () => {
       cancelAnimationFrame(animId);
+      container.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('resize', handleResize);
       cameraRef.current = null;
       interactiveMeshesRef.current = [];
@@ -587,7 +627,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       }
       renderer.dispose();
     };
-  }, [isMysteryLocked, isMine, isHere]);
+  }, [isMysteryLocked, isMine, isHere, targetBearing]);
 
   // Handle tap when crosshairs are not aligned with target note
   const handleMissedTap = () => {
@@ -895,29 +935,8 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
             </div>
           </div>
 
-          {/* Right Controls: Surface Lock, Torch & Close */}
+          {/* Right Controls: Torch & Close */}
           <div className="flex items-center gap-1.5 pointer-events-auto">
-            <button
-              type="button"
-              onClick={toggleSurfaceLock}
-              className={`px-2.5 h-8 rounded-full flex items-center gap-1 text-[11px] font-mono font-bold shadow-md border cursor-pointer active:scale-95 transition-all ${
-                isSurfaceLocked
-                  ? 'bg-[#14143A] text-white border-[var(--mint)] ring-2 ring-[var(--mint)]/40'
-                  : 'bg-white/95 text-[var(--ink-700)] border-[#14143A]/15'
-              }`}
-              title={isSurfaceLocked ? 'Unlock note to compass' : 'Anchor note to surface / desk in front'}
-              aria-label="Toggle Surface Lock"
-            >
-              <Crosshair
-                size={14}
-                weight={isSurfaceLocked ? 'bold' : 'regular'}
-                color={isSurfaceLocked ? 'var(--mint)' : 'currentColor'}
-              />
-              <span className="hidden sm:inline">
-                {isSurfaceLocked ? 'LOCKED' : 'LOCK IN'}
-              </span>
-            </button>
-
             <button
               type="button"
               onClick={toggleTorch}

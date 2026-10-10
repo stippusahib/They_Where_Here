@@ -165,21 +165,37 @@ export const LayoverSheet: React.FC<LayoverSheetProps> = ({
 
                 {/* Range Slider */}
                 <div className="flex flex-col gap-2">
-                  <input
-                    type="range"
-                    min={1}
-                    max={8}
-                    step={1}
-                    value={layoverHours}
-                    onChange={(e) => setLayoverHours(parseInt(e.target.value, 10))}
-                    className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-[var(--hanko)] bg-[var(--ink-100)]"
-                  />
-                  <div className="flex justify-between text-xs text-[var(--ink-500)] px-1 font-mono font-bold">
-                    <span>1h</span>
-                    <span>2h</span>
-                    <span>4h</span>
-                    <span>6h</span>
-                    <span>8h</span>
+                  <div className="relative flex items-center h-8">
+                    <input
+                      type="range"
+                      min={0}
+                      max={QUICK_HOURS.length - 1}
+                      step={1}
+                      value={Math.max(0, QUICK_HOURS.indexOf(layoverHours))}
+                      onChange={(e) => setLayoverHours(QUICK_HOURS[parseInt(e.target.value, 10)] ?? 4)}
+                      className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-[var(--hanko)] bg-[var(--ink-100)]"
+                    />
+                  </div>
+                  <div className="relative w-full h-5 font-mono text-[11px] font-bold text-[var(--ink-500)]">
+                    {QUICK_HOURS.map((h, idx) => {
+                      const isSelected = layoverHours === h;
+                      const leftPct = (idx / (QUICK_HOURS.length - 1)) * 100;
+                      return (
+                        <button
+                          key={h}
+                          type="button"
+                          onClick={() => setLayoverHours(h)}
+                          style={{ left: `${leftPct}%`, transform: 'translateX(-50%)' }}
+                          className={`absolute top-0 transition-all cursor-pointer ${
+                            isSelected
+                              ? 'text-[var(--hanko)] font-black underline underline-offset-4 decoration-2'
+                              : 'hover:text-[var(--ink-900)]'
+                          }`}
+                        >
+                          {h}h
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

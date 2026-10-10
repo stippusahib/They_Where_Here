@@ -34,6 +34,7 @@ import { VoiceNoteRecorder } from './VoiceNoteRecorder';
 import { VoiceNotePlayer } from '@/ui/components/VoiceNotePlayer';
 import type { NoteRarity } from '@/contracts/types';
 import type { ExtendedNote } from '@/lib/seedNotes';
+import { publishNote } from '@/lib/liveNotes';
 
 const STAMPS = [
   { id: 1, icon: Coffee, label: 'Chai' },
@@ -88,7 +89,7 @@ export function CreateNoteModal() {
     if (hapticsEnabled) vibrateSuccess();
 
     const newNote: ExtendedNote = {
-      id: `user-note-${Date.now()}`,
+      id: crypto.randomUUID(),
       lat: position.lat,
       lng: position.lng,
       rarity,
@@ -106,8 +107,11 @@ export function CreateNoteModal() {
       audio_duration: voiceDuration || undefined,
     };
 
+    // Optimistically add locally and broadcast live to all connected devices
+    addNoteLocally(newNote);
+    publishNote(newNote);
+
     setTimeout(() => {
-      addNoteLocally(newNote);
       setIsSubmitting(false);
       setIsSuccess(true);
 

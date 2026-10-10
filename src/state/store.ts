@@ -45,6 +45,8 @@ interface AppState {
   notes: ExtendedNote[];
   setNotes: (notes: ExtendedNote[]) => void;
   addNoteLocally: (note: ExtendedNote) => void;
+  addOrUpdateNote: (note: ExtendedNote) => void;
+  clearAllNotes: () => void;
   unlockNoteLocally: (noteId: string) => ExtendedNote | undefined;
 
   /* ── Passport ─────────────────────────────────────────── */
@@ -154,15 +156,26 @@ export const useAppStore = create<AppState>((set, get) => ({
   setOffline: (isOffline) => set({ isOffline }),
 
   // Map notes
-  notes: SEED_NOTES,
+  notes: [],
   setNotes: (notes) => set({ notes }),
   addNoteLocally: (newNote) =>
     set((state) => ({
-      notes: [newNote, ...state.notes],
+      notes: [newNote, ...state.notes.filter((n) => n.id !== newNote.id)],
       profile: state.profile
         ? { ...state.profile, xp: state.profile.xp + 50 }
         : null,
     })),
+  addOrUpdateNote: (newNote) =>
+    set((state) => {
+      const exists = state.notes.some((n) => n.id === newNote.id);
+      if (exists) {
+        return {
+          notes: state.notes.map((n) => (n.id === newNote.id ? newNote : n)),
+        };
+      }
+      return { notes: [newNote, ...state.notes] };
+    }),
+  clearAllNotes: () => set({ notes: [] }),
   unlockNoteLocally: (noteId) => {
     const state = get();
     const target = state.notes.find((n) => n.id === noteId);

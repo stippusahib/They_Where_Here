@@ -55,9 +55,11 @@ export const LayoverOnboarding: React.FC<LayoverOnboardingProps> = ({ onComplete
     return checkLayoverExit(passportCountry, layoverCountry);
   }, [passportCountry, layoverCountry]);
 
+  const LAYOVER_STEPS = [1, 2, 4, 6, 8];
+  const stepIndex = Math.max(0, LAYOVER_STEPS.indexOf(layoverHours));
   const reachKm = layoverReachKm(layoverHours).toFixed(1);
   const currentDesc = LAYOVER_DESCRIPTIONS[layoverHours] || DEFAULT_DESC;
-  const progressPercent = Math.min(100, Math.max(0, ((layoverHours - 1) / 7) * 100));
+  const progressPercent = (stepIndex / (LAYOVER_STEPS.length - 1)) * 100;
 
   const handleFinish = () => {
     onComplete();
@@ -263,11 +265,11 @@ export const LayoverOnboarding: React.FC<LayoverOnboardingProps> = ({ onComplete
 
                   <input
                     type="range"
-                    min={1}
-                    max={8}
+                    min={0}
+                    max={LAYOVER_STEPS.length - 1}
                     step={1}
-                    value={layoverHours}
-                    onChange={(e) => setLayoverHours(parseInt(e.target.value, 10))}
+                    value={stepIndex}
+                    onChange={(e) => setLayoverHours(LAYOVER_STEPS[parseInt(e.target.value, 10)] ?? 4)}
                     aria-label="Layover duration in hours"
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-30"
                   />
@@ -282,22 +284,27 @@ export const LayoverOnboarding: React.FC<LayoverOnboardingProps> = ({ onComplete
                   </div>
                 </div>
 
-                {/* Hour Tick Buttons */}
-                <div className="flex justify-between items-center mt-1 px-1 font-mono text-[11px] font-bold select-none text-[var(--ink-500)]">
-                  {[1, 2, 4, 6, 8].map((hr) => (
-                    <button
-                      key={hr}
-                      type="button"
-                      onClick={() => setLayoverHours(hr)}
-                      className={`transition-colors cursor-pointer ${
-                        layoverHours === hr
-                          ? 'text-[var(--hanko)] font-black underline underline-offset-4 decoration-2'
-                          : 'hover:text-[var(--ink-900)]'
-                      }`}
-                    >
-                      {hr} {hr === 1 ? 'hr' : 'hrs'}
-                    </button>
-                  ))}
+                {/* Hour Tick Buttons — Centered under exact slider snap points */}
+                <div className="relative w-full h-6 mt-1.5 font-mono text-[11px] font-bold select-none text-[var(--ink-500)]">
+                  {LAYOVER_STEPS.map((hr, idx) => {
+                    const isSelected = layoverHours === hr;
+                    const leftPct = (idx / (LAYOVER_STEPS.length - 1)) * 100;
+                    return (
+                      <button
+                        key={hr}
+                        type="button"
+                        onClick={() => setLayoverHours(hr)}
+                        style={{ left: `${leftPct}%`, transform: 'translateX(-50%)' }}
+                        className={`absolute top-0 transition-all cursor-pointer ${
+                          isSelected
+                            ? 'text-[var(--hanko)] font-black underline underline-offset-4 decoration-2 scale-105'
+                            : 'hover:text-[var(--ink-900)]'
+                        }`}
+                      >
+                        {hr} {hr === 1 ? 'hr' : 'hrs'}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </section>
