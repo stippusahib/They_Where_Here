@@ -4,7 +4,8 @@
  * Layover reach filter, Overnight Wall counter, and Stage Mode.
  * ============================================================ */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import type { Map as MapLibreMap } from 'maplibre-gl';
 import {
   List,
   MapTrifold,
@@ -12,6 +13,8 @@ import {
   SpeakerHigh,
   SpeakerSlash,
   Clock,
+  NavigationArrow,
+  Crosshair,
 } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import {
@@ -22,11 +25,13 @@ import {
   formatDistance,
 } from '@/lib/geo';
 import { MapView } from '@/map/MapView';
+import { showReachView, showStreetView } from '@/map/geoShapes';
 import { HandleChip, WallChip } from '@/ui/components/HudChip';
 import { RadarChip } from '@/ui/components/RadarChip';
 import { ArrivedBar } from '@/features/notes/ArrivedBar';
 import { RarityTag } from '@/ui/components/RarityTag';
 import { OrbSheet } from './OrbSheet';
+import { LayoverSheet } from '@/features/layover/LayoverSheet';
 import { RevealModal } from '@/features/reveal/RevealModal';
 import { CreateNoteModal } from '@/features/notes/CreateNoteModal';
 import type { ExtendedNote } from '@/lib/seedNotes';
@@ -40,14 +45,16 @@ export const MapTab: React.FC = () => {
   const toggleSound = useAppStore((s) => s.toggleSound);
   const isSimulated = useAppStore((s) => s.isSimulated);
   const layoverHours = useAppStore((s) => s.layoverHours);
-  const setLayoverHours = useAppStore((s) => s.setLayoverHours);
   const setIsCreateNoteOpen = useAppStore((s) => s.setIsCreateNoteOpen);
   const activeInspectNote = useAppStore((s) => s.activeInspectNote);
   const setActiveInspectNote = useAppStore((s) => s.setActiveInspectNote);
   const setActiveRevealNote = useAppStore((s) => s.setActiveRevealNote);
 
   const [isListView, setIsListView] = useState(false);
-  const [showLayoverQuickPicker, setShowLayoverQuickPicker] = useState(false);
+  const [isLayoverSheetOpen, setIsLayoverSheetOpen] = useState(false);
+
+  const mapInstanceRef = useRef<MapLibreMap | null>(null);
+  const arrivedBarWrapRef = useRef<HTMLDivElement>(null);
 
   // Layover Reach Radius
   const reachKm = useMemo(() => layoverReachKm(layoverHours), [layoverHours]);
@@ -71,6 +78,11 @@ export const MapTab: React.FC = () => {
       .sort((a, b) => a.distanceMeters - b.distanceMeters);
   }, [notes, position, reachMeters]);
 
+  // Notes inside reach count
+  const notesInReachCount = useMemo(() => {
+    return notesWithDistance.filter((n) => n.inReach).length;
+  }, [notesWithDistance]);
+
   // Nearest note within layover reach
   const nearestNote = useMemo(() => {
     return notesWithDistance.find((n) => n.inReach) ?? notesWithDistance[0] ?? null;
@@ -82,6 +94,28 @@ export const MapTab: React.FC = () => {
   const overnightNotesCount = useMemo(() => {
     return notesWithDistance.filter((n) => n.distanceMeters <= 350).length;
   }, [notesWithDistance]);
+
+  // Step 1.8: ResizeObserver on arrived bar sets --dock-h
+  useEffect(() => {
+    const el = arrivedBarWrapRef.current;
+    if (!el || !nearestNote || nearestDistance === null || nearestDistance > 60) {
+      document.documentElement.style.setProperty('--dock-h', '0px');
+      return;
+    }
+
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const h = entry.contentRect.height;
+        document.documentElement.style.setProperty('--dock-h', `${h + 10}px`);
+      }
+    });
+
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.setProperty('--dock-h', '0px');
+    };
+  }, [nearestNote, nearestDistance]);
 
   const handleOrbClick = (note: ExtendedNote) => {
     setActiveInspectNote(note);
@@ -103,6 +137,25 @@ export const MapTab: React.FC = () => {
     });
   };
 
+  const handleShowReachView = () => {
+    if (mapInstanceRef.current && position) {
+      showReachView(
+        mapInstanceRef.current,
+        { lat: position.lat, lng: position.lng },
+        reachKm
+      );
+    }
+  };
+
+  const handleRecenterStreetView = () => {
+    if (mapInstanceRef.current && position) {
+      showStreetView(
+        mapInstanceRef.current,
+        { lat: position.lat, lng: position.lng }
+      );
+    }
+  };
+
   return (
     <div className="relative w-full h-full overflow-hidden select-none bg-[var(--ink-900)]">
       {/* ── MAP OR LIST LAYER ────────────────────────────────────────── */}
@@ -116,6 +169,9 @@ export const MapTab: React.FC = () => {
             nearestNote={nearestNote}
             nearestDistance={nearestDistance}
             onOrbClick={handleOrbClick}
+            onMapReady={(map) => {
+              mapInstanceRef.current = map;
+            }}
           />
         </div>
       ) : (
@@ -209,6 +265,15 @@ export const MapTab: React.FC = () => {
             xp={profile?.xp ?? 140}
           />
           <WallChip count={overnightNotesCount} />
+          {position?.accuracy && (
+            <div
+              className="hud-chip hidden sm:flex items-center gap-1 text-[11px] text-white/60 px-2.5 py-1"
+              title="Real-time GPS Accuracy"
+            >
+              <Crosshair size={12} weight="bold" color="var(--accent)" />
+              <span>GPS ~{Math.round(position.accuracy)}m</span>
+            </div>
+          )}
         </div>
 
         {/* Right HUD Controls: Sound & List Toggle */}
@@ -249,63 +314,71 @@ export const MapTab: React.FC = () => {
         </div>
       </div>
 
-      {/* ── LAYOVER QUICK PICKER ────────────────────────────────────── */}
-      <div className="fixed top-16 left-4 z-40 safe-top pointer-events-auto">
+      {/* ── LAYOVER CHIP (Step 1.6: opens Layover Sheet) ─────────────── */}
+      <div className="fixed top-16 left-4 z-40 safe-top pointer-events-auto flex items-center gap-2">
         <button
-          onClick={() => setShowLayoverQuickPicker((v) => !v)}
-          className="hud-chip flex items-center gap-1.5 cursor-pointer"
+          onClick={() => setIsLayoverSheetOpen(true)}
+          className="hud-chip flex items-center gap-1.5 cursor-pointer transition-transform active:scale-95"
           style={{
-            borderColor: 'rgba(53, 182, 255, 0.4)',
-            color: 'var(--rare)',
+            borderColor: 'color-mix(in srgb, var(--reach) 40%, transparent)',
+            color: 'var(--reach)',
             fontSize: 'var(--text-xs)',
           }}
+          aria-label="Open Layover Duration Sheet"
         >
-          <Clock size={13} weight="bold" color="var(--rare)" />
+          <Clock size={14} weight="bold" color="var(--reach)" />
           <span>
-            {layoverHours}h Layover ({reachKm.toFixed(1)} km)
+            {layoverHours}h reach ({reachKm.toFixed(1)} km)
           </span>
         </button>
 
-        {showLayoverQuickPicker && (
+        {position?.accuracy && (
           <div
-            className="hud-chip mt-2 p-3 flex flex-col gap-2 w-52 shadow-2xl"
-            style={{ borderRadius: 'var(--radius-panel)' }}
+            className="hud-chip flex sm:hidden items-center gap-1 text-[10px] text-white/70 px-2 py-1"
+            title="Real-time GPS Accuracy"
           >
-            <span
-              className="text-[11px] text-white/80"
-              style={{ fontFamily: 'var(--font-display)' }}
-            >
-              Layover Duration
-            </span>
-            <input
-              type="range"
-              min={1}
-              max={8}
-              value={layoverHours}
-              onChange={(e) => setLayoverHours(parseInt(e.target.value, 10))}
-              className=""
-            />
-            <div className="flex justify-between text-[10px] text-white/60">
-              <span>1h</span>
-              <span className="text-white font-bold">{layoverHours}h</span>
-              <span>8h</span>
-            </div>
+            <Crosshair size={11} weight="bold" color="var(--accent)" />
+            <span>~{Math.round(position.accuracy)}m</span>
           </div>
         )}
       </div>
 
+      {/* ── MAP RECENTER BUTTON (Returns to Street View) ────────────── */}
+      {!isListView && (
+        <div className="fixed top-16 right-4 z-40 safe-top pointer-events-auto">
+          <button
+            onClick={handleRecenterStreetView}
+            className="hud-chip flex items-center justify-center text-white transition-transform active:scale-95 shadow-lg"
+            style={{
+              width: 38,
+              height: 38,
+              padding: 0,
+              borderRadius: '50%',
+              cursor: 'pointer',
+              borderColor: 'color-mix(in srgb, var(--accent) 30%, transparent)',
+            }}
+            title="Recenter Street View"
+            aria-label="Recenter Street View"
+          >
+            <NavigationArrow size={18} weight="bold" color="var(--accent)" />
+          </button>
+        </div>
+      )}
+
       {/* ── BOTTOM HUD & ACTIONS ────────────────────────────────────── */}
       {/* If note is in range (<= 60m), show docking ArrivedBar */}
       {nearestNote && nearestDistance !== null && nearestDistance <= 60 ? (
-        <ArrivedBar
-          onOpen={() => handleOpenNote(nearestNote)}
-          proximityState="here"
-        />
+        <div ref={arrivedBarWrapRef}>
+          <ArrivedBar
+            onOpen={() => handleOpenNote(nearestNote)}
+            proximityState="here"
+          />
+        </div>
       ) : (
         /* Otherwise show nearest note radar chip */
         <div
           className="fixed left-4 z-40 pointer-events-auto"
-          style={{ bottom: 'calc(56px + env(safe-area-inset-bottom, 0px) + 14px)' }}
+          style={{ bottom: 'calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--dock-gap))' }}
         >
           <RadarChip
             nearestNote={nearestNote}
@@ -329,7 +402,7 @@ export const MapTab: React.FC = () => {
 
       {/* Floating Action Button: Leave a note */}
       <button
-        className={`fab-leave-note ${nearestNote && nearestDistance !== null && nearestDistance <= 60 ? 'fab-leave-note--docked' : ''}`}
+        className="fab-leave-note"
         onClick={() => setIsCreateNoteOpen(true)}
         aria-label="Leave a note"
       >
@@ -338,6 +411,13 @@ export const MapTab: React.FC = () => {
       </button>
 
       {/* ── MODALS & SHEETS ────────────────────────────────────────── */}
+      <LayoverSheet
+        isOpen={isLayoverSheetOpen}
+        onClose={() => setIsLayoverSheetOpen(false)}
+        onShowReach={handleShowReachView}
+        notesInReachCount={notesInReachCount}
+      />
+
       <OrbSheet
         note={activeInspectNote}
         distanceMeters={

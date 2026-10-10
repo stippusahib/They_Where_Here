@@ -1,16 +1,26 @@
 /* ============================================================
  * THEY WERE HERE — MapView Component (MapLibre GL)
  * Cinematic anime radar map: styled vector tiles, registered canvas
- * orbs, nearest orb proxy pulse marker, user dot & accuracy halo,
- * and layover reach radius.
+ * orbs with rarity weights, distance labels, user pin with halo,
+ * GeoJSON accuracy ring, and layover reach ring.
  * ============================================================ */
 
 import React, { useEffect, useRef } from 'react';
-import { Map, Marker, setWorkerUrl, type GeoJSONSource, type MapLayerMouseEvent, type ErrorEvent } from 'maplibre-gl';
+import {
+  Map,
+  Marker,
+  setWorkerUrl,
+  type GeoJSONSource,
+  type MapLayerMouseEvent,
+  type ErrorEvent,
+} from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { VENUE_CENTER } from '@/config/venue';
 import { registerOrbs } from './OrbImages';
-import { setupMapLayers } from './layers';
+import { setupMapLayers, updateMapLayerColors } from './layers';
+import { createUserPin } from './userPin';
+import { circlePolygon } from './geoShapes';
+import { haversineDistance, formatDistance } from '@/lib/geo';
 import type { ExtendedNote } from '@/lib/seedNotes';
 import type { GeoPosition } from '@/contracts/types';
 
@@ -25,45 +35,27 @@ interface MapViewProps {
   nearestNote: ExtendedNote | null;
   nearestDistance: number | null;
   onOrbClick: (note: ExtendedNote) => void;
-}
-
-function createCircleFeature(lat: number, lng: number, radiusKm: number, points = 64) {
-  const coords: [number, number][] = [];
-  const kmPerLat = 110.574;
-  const kmPerLng = 111.32 * Math.cos((lat * Math.PI) / 180);
-
-  for (let i = 0; i <= points; i++) {
-    const angle = (i * 2 * Math.PI) / points;
-    const dLat = (radiusKm * Math.sin(angle)) / kmPerLat;
-    const dLng = (radiusKm * Math.cos(angle)) / kmPerLng;
-    coords.push([lng + dLng, lat + dLat]);
-  }
-
-  return {
-    type: 'Feature' as const,
-    geometry: {
-      type: 'Polygon' as const,
-      coordinates: [coords],
-    },
-    properties: {},
-  };
+  onMapReady?: (map: Map) => void;
 }
 
 export const MapView: React.FC<MapViewProps> = ({
   position,
   notes,
-  layoverHours,
+  layoverHours: _layoverHours,
   reachKm,
   nearestNote,
   nearestDistance,
   onOrbClick,
+  onMapReady,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const userMarkerRef = useRef<Marker | null>(null);
   const proxyMarkerRef = useRef<Marker | null>(null);
-  const reachMarkerRef = useRef<Marker | null>(null);
   const isLoadedRef = useRef(false);
+
+  const lastAccuracyUpdateRef = useRef<number>(0);
+  const lastNotesUpdateRef = useRef<number>(0);
 
   const centerLng = position?.lng ?? VENUE_CENTER.lng;
   const centerLat = position?.lat ?? VENUE_CENTER.lat;
@@ -94,14 +86,18 @@ export const MapView: React.FC<MapViewProps> = ({
       registerOrbs(map);
       setupMapLayers(map);
       isLoadedRef.current = true;
-      updateSources();
+      syncAllSources(true);
+      if (onMapReady) {
+        onMapReady(map);
+      }
     };
 
     map.on('load', onStyleData);
     map.on('styledata', () => {
       registerOrbs(map);
       setupMapLayers(map);
-      updateSources();
+      updateMapLayerColors(map);
+      syncAllSources(true);
     });
 
     // Orb click handler
@@ -130,115 +126,116 @@ export const MapView: React.FC<MapViewProps> = ({
     };
   }, []);
 
-  // Update GeoJSON sources when notes or reach radius changes
-  const updateSources = () => {
+  // Sync GeoJSON notes source with distance calculation (throttled to 2s)
+  const syncNotesSource = (force = false) => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
 
-    // Update notes GeoJSON
+    const now = Date.now();
+    if (!force && now - lastNotesUpdateRef.current < 2000) return;
+    lastNotesUpdateRef.current = now;
+
     const notesSource = map.getSource('notes') as GeoJSONSource | undefined;
     if (notesSource) {
-      const features = notes.map((note) => ({
-        type: 'Feature' as const,
-        geometry: {
-          type: 'Point' as const,
-          coordinates: [note.lng, note.lat],
-        },
-        properties: {
-          id: note.id,
-          rarity: note.rarity,
-          unlocked: Boolean(note.unlocked),
-          title: note.title,
-          body: note.body,
-        },
-      }));
+      const features = notes.map((note) => {
+        let dist = 0;
+        let distLabel = '';
+        if (position) {
+          dist = Math.round(haversineDistance(position.lat, position.lng, note.lat, note.lng));
+          distLabel = formatDistance(dist);
+        }
+        return {
+          type: 'Feature' as const,
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [note.lng, note.lat],
+          },
+          properties: {
+            id: note.id,
+            rarity: note.rarity,
+            unlocked: Boolean(note.unlocked),
+            title: note.title,
+            body: note.body,
+            dist,
+            distLabel,
+          },
+        };
+      });
 
       notesSource.setData({
         type: 'FeatureCollection',
         features,
       });
     }
+  };
 
-    // Update layover reach circle
+  // Sync Reach circle source
+  const syncReachSource = () => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded() || !position) return;
+
     const reachSource = map.getSource('reach') as GeoJSONSource | undefined;
-    if (reachSource && position) {
-      const circleFeature = createCircleFeature(position.lat, position.lng, reachKm);
+    if (reachSource) {
+      const reachPolygon = circlePolygon(position.lng, position.lat, reachKm * 1000);
       reachSource.setData({
         type: 'FeatureCollection',
-        features: [circleFeature],
+        features: [reachPolygon],
       });
     }
   };
 
-  useEffect(() => {
-    updateSources();
-  }, [notes, reachKm, position]);
+  // Sync Accuracy GeoJSON source (throttled to 1s)
+  const syncAccuracySource = (force = false) => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded() || !position) return;
 
-  // Manage User Marker
+    const now = Date.now();
+    if (!force && now - lastAccuracyUpdateRef.current < 1000) return;
+    lastAccuracyUpdateRef.current = now;
+
+    const accuracySource = map.getSource('me-accuracy') as GeoJSONSource | undefined;
+    if (accuracySource) {
+      // Clamp drawn radius between 8m and 120m
+      const clampedRadius = Math.max(8, Math.min(120, position.accuracy || 20));
+      const accPolygon = circlePolygon(position.lng, position.lat, clampedRadius);
+      accuracySource.setData({
+        type: 'FeatureCollection',
+        features: [accPolygon],
+      });
+    }
+  };
+
+  const syncAllSources = (force = false) => {
+    syncNotesSource(force);
+    syncReachSource();
+    syncAccuracySource(force);
+  };
+
+  useEffect(() => {
+    syncNotesSource(false);
+  }, [notes, position]);
+
+  useEffect(() => {
+    syncReachSource();
+  }, [reachKm, position]);
+
+  useEffect(() => {
+    syncAccuracySource(false);
+  }, [position]);
+
+  // Manage User Marker (Step 1.2: DOM marker created once, only setLngLat afterwards)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !position) return;
 
     if (!userMarkerRef.current) {
-      const el = document.createElement('div');
-      el.className = 'user-marker-wrap';
-      const pulse = document.createElement('div');
-      pulse.className = 'user-pulse-wave';
-      const ring = document.createElement('div');
-      ring.className = 'accuracy-ring';
-      const dot = document.createElement('div');
-      dot.className = 'user-dot';
-      const dotCore = document.createElement('div');
-      dotCore.className = 'user-dot-core';
-      dot.appendChild(dotCore);
-      el.appendChild(pulse);
-      el.appendChild(ring);
-      el.appendChild(dot);
-
-      const marker = new Marker({ element: el })
-        .setLngLat([position.lng, position.lat])
-        .addTo(map);
-
+      const { marker } = createUserPin();
+      marker.setLngLat([position.lng, position.lat]).addTo(map);
       userMarkerRef.current = marker;
     } else {
       userMarkerRef.current.setLngLat([position.lng, position.lat]);
     }
-
-    // Update accuracy halo scale
-    const el = userMarkerRef.current.getElement();
-    const px = Math.max(30, Math.min(120, (position.accuracy || 20) * 2.5));
-    el.style.setProperty('--acc-size', `${px}px`);
   }, [position]);
-
-  // Manage Reach Label Marker (anchored at top of reach circle)
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !position) return;
-
-    const labelLat = position.lat + reachKm / 111.32;
-    const labelLng = position.lng;
-
-    if (!reachMarkerRef.current) {
-      const el = document.createElement('div');
-      el.className = 'reach-label';
-      el.innerHTML = `
-        <svg width="12" height="12" viewBox="0 0 256 256" fill="currentColor">
-          <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm40-88a8,8,0,0,1-8,8H128a8,8,0,0,1-8-8V80a8,8,0,0,1,16,0v40h24A8,8,0,0,1,168,128Z"/>
-        </svg>
-        <span>${layoverHours}h reach · ${reachKm.toFixed(1)} km</span>
-      `;
-
-      const marker = new Marker({ element: el, anchor: 'bottom' })
-        .setLngLat([labelLng, labelLat])
-        .addTo(map);
-
-      reachMarkerRef.current = marker;
-    } else {
-      reachMarkerRef.current.setLngLat([labelLng, labelLat]);
-      const span = reachMarkerRef.current.getElement().querySelector('span');
-      if (span) span.innerText = `${layoverHours}h reach · ${reachKm.toFixed(1)} km`;
-    }
-  }, [position, layoverHours, reachKm]);
 
   // Manage Nearest Orb Pulse Proxy Marker (within 400m)
   useEffect(() => {
@@ -255,7 +252,7 @@ export const MapView: React.FC<MapViewProps> = ({
       if (!proxyMarkerRef.current) {
         const el = document.createElement('div');
         el.className = 'orb-proxy-marker';
-        const marker = new Marker({ element: el })
+        const marker = new Marker({ element: el, anchor: 'center' })
           .setLngLat([nearestNote.lng, nearestNote.lat])
           .addTo(map);
         proxyMarkerRef.current = marker;
@@ -282,7 +279,7 @@ export const MapView: React.FC<MapViewProps> = ({
   return (
     <div
       ref={containerRef}
-      className="w-full h-full"
+      className="w-full h-full relative"
       style={{ background: 'var(--ink-900)' }}
     />
   );
