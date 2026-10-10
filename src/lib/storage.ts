@@ -8,6 +8,8 @@ import type { PassportNote } from '@/contracts/types';
 
 const PASSPORT_KEY = 'twh_passport_notes';
 const LAYOVER_HOURS_KEY = 'twh_layover_hours';
+const PASSPORT_COUNTRY_KEY = 'twh_passport_country';
+const LAYOVER_COUNTRY_KEY = 'twh_layover_country';
 const AVATAR_KEY = 'twh_avatar_sticker';
 
 /**
@@ -83,6 +85,52 @@ export async function getStoredLayoverHours(): Promise<number | null> {
   try {
     const hours = await get<number>(LAYOVER_HOURS_KEY);
     return typeof hours === 'number' ? hours : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Saves the user's selected passport country.
+ */
+export async function savePassportCountry(country: string): Promise<void> {
+  try {
+    await set(PASSPORT_COUNTRY_KEY, country);
+  } catch (err) {
+    console.warn('[Storage] Failed to save passport country:', err);
+  }
+}
+
+/**
+ * Retrieves previously saved passport country.
+ */
+export async function getStoredPassportCountry(): Promise<string | null> {
+  try {
+    const country = await get<string>(PASSPORT_COUNTRY_KEY);
+    return typeof country === 'string' ? country : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Saves the user's selected layover country.
+ */
+export async function saveLayoverCountry(country: string): Promise<void> {
+  try {
+    await set(LAYOVER_COUNTRY_KEY, country);
+  } catch (err) {
+    console.warn('[Storage] Failed to save layover country:', err);
+  }
+}
+
+/**
+ * Retrieves previously saved layover country.
+ */
+export async function getStoredLayoverCountry(): Promise<string | null> {
+  try {
+    const country = await get<string>(LAYOVER_COUNTRY_KEY);
+    return typeof country === 'string' ? country : null;
   } catch {
     return null;
   }

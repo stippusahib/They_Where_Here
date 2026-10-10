@@ -19,6 +19,14 @@ describe('Global App State (Zustand)', () => {
     expect(useAppStore.getState().layoverHours).toBe(4);
     useAppStore.getState().setLayoverHours(2);
     expect(useAppStore.getState().layoverHours).toBe(2);
+
+    expect(useAppStore.getState().passportCountry).toBe('India');
+    useAppStore.getState().setPassportCountry('United Kingdom');
+    expect(useAppStore.getState().passportCountry).toBe('United Kingdom');
+
+    expect(useAppStore.getState().layoverCountry).toBe('United Arab Emirates');
+    useAppStore.getState().setLayoverCountry('Qatar');
+    expect(useAppStore.getState().layoverCountry).toBe('Qatar');
   });
 
   it('toggles simulation / Stage Mode correctly', () => {

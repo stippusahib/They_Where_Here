@@ -86,6 +86,10 @@ interface AppState {
   /* ── Layover Mode (P0) ────────────────────────────────── */
   layoverHours: number;
   setLayoverHours: (hours: number) => void;
+  passportCountry: string;
+  setPassportCountry: (country: string) => void;
+  layoverCountry: string;
+  setLayoverCountry: (country: string) => void;
   hasSeenLayoverOnboarding: boolean;
   setHasSeenLayoverOnboarding: (val: boolean) => void;
 
@@ -246,6 +250,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Layover Mode (P0)
   layoverHours: 4,
   setLayoverHours: (layoverHours) => set({ layoverHours }),
+  passportCountry: 'India',
+  setPassportCountry: (passportCountry) => set({ passportCountry }),
+  layoverCountry: 'United Arab Emirates',
+  setLayoverCountry: (layoverCountry) => set({ layoverCountry }),
   hasSeenLayoverOnboarding: false,
   setHasSeenLayoverOnboarding: (hasSeenLayoverOnboarding) =>
     set({ hasSeenLayoverOnboarding }),

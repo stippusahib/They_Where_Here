@@ -16,6 +16,7 @@ import {
   NavigationArrow,
   Crosshair,
   Camera,
+  ShieldWarning,
 } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import {
@@ -41,6 +42,7 @@ import { LayoverSheet } from '@/features/layover/LayoverSheet';
 import { RevealModal } from '@/features/reveal/RevealModal';
 import { CreateNoteModal } from '@/features/notes/CreateNoteModal';
 import { ARNoteView } from '@/features/ar/ARNoteView';
+import { checkLayoverExit } from '@/lib/visaCheck';
 import type { ExtendedNote } from '@/lib/seedNotes';
 
 export const MapTab: React.FC = () => {
@@ -52,6 +54,8 @@ export const MapTab: React.FC = () => {
   const toggleSound = useAppStore((s) => s.toggleSound);
   const isSimulated = useAppStore((s) => s.isSimulated);
   const layoverHours = useAppStore((s) => s.layoverHours);
+  const passportCountry = useAppStore((s) => s.passportCountry);
+  const layoverCountry = useAppStore((s) => s.layoverCountry);
   const isCreateNoteOpen = useAppStore((s) => s.isCreateNoteOpen);
   const setIsCreateNoteOpen = useAppStore((s) => s.setIsCreateNoteOpen);
   const activeInspectNote = useAppStore((s) => s.activeInspectNote);
@@ -67,9 +71,13 @@ export const MapTab: React.FC = () => {
   const mapInstanceRef = useRef<MapLibreMap | null>(null);
   const arrivedBarWrapRef = useRef<HTMLDivElement>(null);
 
-  // Layover Reach Radius
+  // Layover Reach Radius & Visa Exit Status
   const reachKm = useMemo(() => layoverReachKm(layoverHours), [layoverHours]);
   const reachMeters = reachKm * 1000;
+  const exitAssessment = useMemo(
+    () => checkLayoverExit(passportCountry, layoverCountry),
+    [passportCountry, layoverCountry]
+  );
 
   // Filter and sort notes by distance
   const notesWithDistance = useMemo(() => {
@@ -348,15 +356,26 @@ export const MapTab: React.FC = () => {
           className="hud-chip flex items-center gap-1.5 cursor-pointer transition-transform active:scale-95 shadow-sm text-xs"
           style={{
             background: '#FFFFFF',
-            border: '1.5px solid #EADECA',
+            border: exitAssessment.canExit ? '1.5px solid #EADECA' : '1.5px solid rgba(210, 63, 90, 0.45)',
             color: 'var(--ink-700)',
           }}
-          aria-label="Open Layover Duration Sheet"
+          aria-label="Open Layover Duration and Visa Rules Sheet"
         >
-          <Clock size={14} weight="bold" color="var(--hanko)" />
-          <span className="font-bold">
-            {layoverHours}h reach ({reachKm.toFixed(1)} km)
-          </span>
+          {exitAssessment.canExit ? (
+            <>
+              <Clock size={14} weight="bold" color="var(--hanko)" />
+              <span className="font-bold">
+                {layoverHours}h reach ({reachKm.toFixed(1)} km)
+              </span>
+            </>
+          ) : (
+            <>
+              <ShieldWarning size={14} weight="bold" color="var(--hanko)" />
+              <span className="font-bold text-[var(--hanko)]">
+                Airside Only (No Exit)
+              </span>
+            </>
+          )}
         </button>
 
         {position?.accuracy && (
