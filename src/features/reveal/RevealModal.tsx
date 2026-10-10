@@ -12,6 +12,7 @@ import { vibrateSuccess } from '@/lib/haptics';
 import { SlashOverlay } from './SlashOverlay';
 import { RevealHeading } from './RevealHeading';
 import { NoteCard } from './NoteCard';
+import { PaperPlaneCanvas } from '@/3d/PaperPlaneCanvas';
 
 export const RevealModal: React.FC = () => {
   const activeRevealNote = useAppStore((s) => s.activeRevealNote);
@@ -99,7 +100,7 @@ export const RevealModal: React.FC = () => {
         {/* Demo data badge */}
         {activeRevealNote.is_seed && (
           <span
-            className="mb-3 px-2 py-0.5"
+            className="mb-2 px-2 py-0.5"
             style={{
               fontFamily: 'var(--font-body)',
               fontSize: '11px',
@@ -110,6 +111,13 @@ export const RevealModal: React.FC = () => {
           >
             demo data
           </span>
+        )}
+
+        {/* 3D Paper Plane Mascot Cameo on Legendary reveal (Part 11) */}
+        {activeRevealNote.rarity === 'legendary' && (
+          <div className="w-36 h-20 -mb-2 z-20 pointer-events-none">
+            <PaperPlaneCanvas speed={1.5} />
+          </div>
         )}
 
         {/* Die-cut Sticker Note Card */}

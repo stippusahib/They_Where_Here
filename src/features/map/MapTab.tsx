@@ -283,7 +283,7 @@ export const MapTab: React.FC = () => {
               max={8}
               value={layoverHours}
               onChange={(e) => setLayoverHours(parseInt(e.target.value, 10))}
-              className="accent-[#E8264C]"
+              className=""
             />
             <div className="flex justify-between text-[10px] text-white/60">
               <span>1h</span>
@@ -329,7 +329,7 @@ export const MapTab: React.FC = () => {
 
       {/* Floating Action Button: Leave a note */}
       <button
-        className="fab-leave-note"
+        className={`fab-leave-note ${nearestNote && nearestDistance !== null && nearestDistance <= 60 ? 'fab-leave-note--docked' : ''}`}
         onClick={() => setIsCreateNoteOpen(true)}
         aria-label="Leave a note"
       >

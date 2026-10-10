@@ -47,9 +47,9 @@ export function RanksTab() {
       style={{
         background: `linear-gradient(
           180deg,
-          var(--color-sky-night-deep) 0%,
-          var(--color-sky-night-mid) 40%,
-          var(--color-ink-900) 100%
+          var(--sky-a) 0%,
+          var(--sky-b) 40%,
+          var(--ink-900) 100%
         )`,
       }}
     >

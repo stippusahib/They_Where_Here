@@ -50,9 +50,9 @@ export function setupMapLayers(map: Map) {
         ],
         'icon-size': [
           'interpolate', ['linear'], ['zoom'],
-          13.5, 0.55,
-          15, 0.80,
-          17, 1.0,
+          13.5, 0.75,
+          15, 1.0,
+          17, 1.35,
         ],
         'icon-allow-overlap': true,
         'icon-ignore-placement': true,
@@ -78,7 +78,7 @@ export function setupMapLayers(map: Map) {
       type: 'line',
       source: 'reach',
       paint: {
-        'line-color': '#35B6FF',
+        'line-color': '#35B6FF', // mirrors --rare token
         'line-opacity': 0.35,
         'line-width': 1.5,
         'line-dasharray': [4, 4],

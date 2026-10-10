@@ -4,10 +4,11 @@
  * Runs before the user ever sees the map.
  * ============================================================ */
 
-import { Clock, NavigationArrow } from '@phosphor-icons/react';
+import { NavigationArrow } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import { layoverReachKm } from '@/lib/geo';
 import { APP_NAME } from '@/contracts/types';
+import { PaperPlaneCanvas } from '@/3d/PaperPlaneCanvas';
 
 interface LayoverOnboardingProps {
   onComplete: () => void;
@@ -29,13 +30,14 @@ export function LayoverOnboarding({ onComplete }: LayoverOnboardingProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col justify-between p-6 safe-top safe-bottom"
+      className="fixed inset-0 flex flex-col justify-between p-6 safe-top safe-bottom"
       style={{
+        zIndex: 'var(--z-onboarding)',
         background: `linear-gradient(
           180deg,
-          var(--color-sky-night-deep) 0%,
-          var(--color-sky-night-mid) 40%,
-          var(--color-ink-900) 100%
+          var(--sky-a) 0%,
+          var(--sky-b) 40%,
+          var(--ink-900) 100%
         )`,
       }}
     >
@@ -69,17 +71,8 @@ export function LayoverOnboarding({ onComplete }: LayoverOnboardingProps) {
 
       {/* Main question and slider card */}
       <div className="flex flex-col items-center text-center my-auto px-2">
-        <div
-          className="mb-6 flex items-center justify-center"
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: '50%',
-            background: 'rgba(232, 38, 76, 0.15)',
-            color: 'var(--color-hanko)',
-          }}
-        >
-          <Clock size={36} weight="bold" />
+        <div className="w-56 h-36 mb-1 flex items-center justify-center">
+          <PaperPlaneCanvas />
         </div>
 
         <h1
@@ -137,7 +130,7 @@ export function LayoverOnboarding({ onComplete }: LayoverOnboardingProps) {
             step={1}
             value={layoverHours}
             onChange={(e) => setLayoverHours(parseInt(e.target.value, 10))}
-            className="w-full cursor-pointer accent-[#E8264C]"
+            className="w-full cursor-pointer"
             style={{ height: 8 }}
           />
           <div
@@ -164,7 +157,7 @@ export function LayoverOnboarding({ onComplete }: LayoverOnboardingProps) {
           <NavigationArrow
             size={24}
             weight="fill"
-            style={{ color: 'var(--color-rare)', flexShrink: 0 }}
+            style={{ color: 'var(--rare)', flexShrink: 0 }}
           />
           <div>
             <p

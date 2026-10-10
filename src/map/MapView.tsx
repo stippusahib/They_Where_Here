@@ -5,14 +5,17 @@
  * and layover reach radius.
  * ============================================================ */
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Map, Marker, type GeoJSONSource, type MapLayerMouseEvent, type ErrorEvent } from 'maplibre-gl';
+import React, { useEffect, useRef } from 'react';
+import { Map, Marker, setWorkerUrl, type GeoJSONSource, type MapLayerMouseEvent, type ErrorEvent } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { VENUE_CENTER } from '@/config/venue';
 import { registerOrbs } from './OrbImages';
 import { setupMapLayers } from './layers';
 import type { ExtendedNote } from '@/lib/seedNotes';
 import type { GeoPosition } from '@/contracts/types';
+
+// Explicitly register standalone web worker to resolve Vite bundling
+setWorkerUrl('/maplibre-gl-worker.mjs');
 
 interface MapViewProps {
   position: GeoPosition | null;
@@ -60,7 +63,6 @@ export const MapView: React.FC<MapViewProps> = ({
   const userMarkerRef = useRef<Marker | null>(null);
   const proxyMarkerRef = useRef<Marker | null>(null);
   const reachMarkerRef = useRef<Marker | null>(null);
-  const [, setMapFallback] = useState<string>('none');
   const isLoadedRef = useRef(false);
 
   const centerLng = position?.lng ?? VENUE_CENTER.lng;
@@ -74,7 +76,7 @@ export const MapView: React.FC<MapViewProps> = ({
       container: containerRef.current,
       style: '/map-style.json',
       center: [centerLng, centerLat],
-      zoom: 15,
+      zoom: 15.2,
       pitch: 0,
       bearing: 0,
       dragRotate: false,
@@ -85,11 +87,7 @@ export const MapView: React.FC<MapViewProps> = ({
     mapRef.current = map;
 
     map.on('error', (e: ErrorEvent) => {
-      console.warn('Map style error, falling back:', e);
-      if (e.error) {
-        map.setStyle('https://tiles.openfreemap.org/styles/liberty');
-        setMapFallback('basic');
-      }
+      console.warn('MapLibre event:', e);
     });
 
     const onStyleData = () => {
@@ -184,6 +182,8 @@ export const MapView: React.FC<MapViewProps> = ({
     if (!userMarkerRef.current) {
       const el = document.createElement('div');
       el.className = 'user-marker-wrap';
+      const pulse = document.createElement('div');
+      pulse.className = 'user-pulse-wave';
       const ring = document.createElement('div');
       ring.className = 'accuracy-ring';
       const dot = document.createElement('div');
@@ -191,6 +191,7 @@ export const MapView: React.FC<MapViewProps> = ({
       const dotCore = document.createElement('div');
       dotCore.className = 'user-dot-core';
       dot.appendChild(dotCore);
+      el.appendChild(pulse);
       el.appendChild(ring);
       el.appendChild(dot);
 
@@ -278,5 +279,11 @@ export const MapView: React.FC<MapViewProps> = ({
     }
   }, [nearestNote, nearestDistance]);
 
-  return <div ref={containerRef} className="w-full h-full" />;
+  return (
+    <div
+      ref={containerRef}
+      className="w-full h-full"
+      style={{ background: 'var(--ink-900)' }}
+    />
+  );
 };
