@@ -4,10 +4,13 @@
  * ============================================================ */
 
 import { useState } from 'react';
-import { MapTrifold, Crosshair, List } from '@phosphor-icons/react';
+import { MapTrifold, Crosshair, Compass } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import { APP_NAME } from '@/contracts/types';
+import type { MapNote } from '@/contracts/types';
 import { CreateNoteModal } from '@/features/notes/CreateNoteModal';
+import { TrailsModal } from '@/features/trails/TrailsModal';
+import { RevealModal } from '@/features/reveal/RevealModal';
 import { playButtonClick } from '@/lib/audio';
 
 /**
@@ -17,7 +20,10 @@ import { playButtonClick } from '@/lib/audio';
  */
 export function MapTab() {
   const profile = useAppStore((s) => s.profile);
+  const layoverHours = useAppStore((s) => s.layoverHours);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isTrailsOpen, setIsTrailsOpen] = useState(false);
+  const [activeRevealNote, setActiveRevealNote] = useState<MapNote | null>(null);
 
   return (
     <div
@@ -96,49 +102,88 @@ export function MapTab() {
         <Crosshair size={24} weight="bold" />
       </button>
 
-      {/* HUD: List mode button */}
+      {/* HUD: Layover Trails button */}
       <button
-        className="glass absolute top-16 right-4 flex items-center justify-center"
+        onClick={() => {
+          playButtonClick();
+          setIsTrailsOpen(true);
+        }}
+        className="glass absolute top-16 right-4 flex items-center justify-center gap-1 px-3"
         style={{
-          width: 48,
-          height: 48,
+          height: 40,
           borderRadius: 'var(--radius-chip)',
           cursor: 'pointer',
           border: 'none',
           color: 'white',
           zIndex: 10,
         }}
-        aria-label="Switch to list view"
+        aria-label="Open Layover Trails"
       >
-        <List size={24} weight="bold" />
+        <Compass size={18} weight="bold" color="var(--color-mint)" />
+        <span
+          className="text-xs font-bold"
+          style={{ fontFamily: 'var(--font-display)' }}
+        >
+          {layoverHours}h Trails
+        </span>
       </button>
 
-      {/* Radar chip — nearest note guidance */}
+      {/* Radar chip — nearest note guidance & reveal trigger */}
       <div
-        className="glass absolute left-4 right-4 flex items-center gap-3 px-4 py-3"
+        onClick={() => {
+          playButtonClick();
+          // Demo note for immediate reveal testing
+          setActiveRevealNote({
+            id: 'radar-demo',
+            lat: 11.2588,
+            lng: 75.7804,
+            rarity: 'rare',
+            stamp: 1,
+            tone: 2,
+            unlock_count: 14,
+            worth_yes: 12,
+            worth_no: 1,
+            is_seed: true,
+            unlocked: true,
+          });
+        }}
+        className="glass absolute left-4 right-4 flex items-center justify-between px-4 py-3 cursor-pointer active:scale-[0.99] transition-transform"
         style={{
           bottom: 72,
           borderRadius: 'var(--radius-panel)',
           zIndex: 10,
         }}
       >
-        <div
-          style={{
-            width: 12,
-            height: 12,
-            borderRadius: '50%',
-            background: 'var(--color-common)',
-            boxShadow: '0 0 8px var(--color-common)',
-          }}
-        />
+        <div className="flex items-center gap-3">
+          <div
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: '50%',
+              background: 'var(--color-mint)',
+              boxShadow: '0 0 8px var(--color-mint)',
+            }}
+          />
+          <span
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: 'var(--font-size-sm)',
+              color: 'white',
+            }}
+          >
+            Sealed note in range (42m away)
+          </span>
+        </div>
+
         <span
+          className="px-2.5 py-1 rounded text-xs font-bold"
           style={{
-            fontFamily: 'var(--font-body)',
-            fontSize: 'var(--font-size-sm)',
+            background: 'var(--color-hanko)',
             color: 'white',
+            fontFamily: 'var(--font-display)',
           }}
         >
-          No notes nearby yet. Leave the first one.
+          Open
         </span>
       </div>
 
@@ -163,6 +208,19 @@ export function MapTab() {
       <CreateNoteModal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
+      />
+
+      {/* Layover Trails Modal */}
+      <TrailsModal
+        isOpen={isTrailsOpen}
+        onClose={() => setIsTrailsOpen(false)}
+      />
+
+      {/* Cinematic Reveal Modal */}
+      <RevealModal
+        note={activeRevealNote}
+        isOpen={activeRevealNote !== null}
+        onClose={() => setActiveRevealNote(null)}
       />
     </div>
   );
