@@ -3,9 +3,12 @@
  * Fullscreen MapLibre map with orbs, user dot, radar chip.
  * ============================================================ */
 
+import { useState } from 'react';
 import { MapTrifold, Crosshair, List } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import { APP_NAME } from '@/contracts/types';
+import { CreateNoteModal } from '@/features/notes/CreateNoteModal';
+import { playButtonClick } from '@/lib/audio';
 
 /**
  * Map tab — the main screen of the app.
@@ -14,6 +17,7 @@ import { APP_NAME } from '@/contracts/types';
  */
 export function MapTab() {
   const profile = useAppStore((s) => s.profile);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   return (
     <div
@@ -140,6 +144,10 @@ export function MapTab() {
 
       {/* Leave a note button */}
       <button
+        onClick={() => {
+          playButtonClick();
+          setIsCreateOpen(true);
+        }}
         className="slant-btn slant-btn--primary absolute"
         style={{
           bottom: 132,
@@ -150,6 +158,12 @@ export function MapTab() {
       >
         Leave a note
       </button>
+
+      {/* Create Note Modal */}
+      <CreateNoteModal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+      />
     </div>
   );
 }
