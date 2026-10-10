@@ -48,6 +48,7 @@
   --hanko-dark:#B81E3C;
   --mint:      #5EE2B5;   /* success, worth it */
   --warn:      #FF9E3D;   /* warning, close state */
+  --sheet-bg:  #FFFFFF;   /* card and bottom sheet background */
 
   /* Dock and Tab Bar geometry */
   --tabbar-h:  60px;
@@ -349,7 +350,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 12px;
+  padding: 6px 10px;
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-chip);
@@ -361,6 +362,19 @@ body {
   color: var(--ink-100);
   white-space: nowrap;
   user-select: none;
+}
+
+@media (max-width: 640px) {
+  .hud-chip {
+    padding: 5px 8px;
+    gap: 4px;
+    font-size: 11px;
+  }
+}
+
+.hud-chip.hidden,
+.hidden {
+  display: none !important;
 }
 
 .hud-chip-dot {
@@ -421,13 +435,13 @@ body {
   justify-content: space-between;
   gap: 12px;
   padding: 14px 14px 14px 16px;
-  background: var(--sheet-bg);
-  border: 1px solid var(--mint);
+  background: #FFFFFF;
+  border: 1.5px solid var(--mint);
   border-radius: 18px;
   box-shadow:
-    0 0 0 1px rgba(94,226,181,0.15),
-    0 8px 32px rgba(0,0,0,0.60),
-    inset 0 1px 0 rgba(255,255,255,0.06);
+    0 0 0 1px rgba(94,226,181,0.25),
+    0 8px 32px rgba(15, 18, 48, 0.12),
+    inset 0 1px 0 rgba(255,255,255,0.8);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
@@ -444,14 +458,14 @@ body {
   font-family: var(--font-body);
   font-weight: 700;
   font-size: var(--text-base);
-  color: var(--white);
+  color: var(--ink-900);
   line-height: 1.2;
 }
 
 .arrived-sub {
   font-family: var(--font-body);
   font-size: var(--text-xs);
-  color: var(--ink-300);
+  color: var(--ink-500);
   margin-top: 1px;
 }
 
@@ -569,7 +583,7 @@ body {
 }
 
 .fab-leave-note--docked {
-  bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 84px);
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 84px) !important;
 }
 
 .fab-leave-note > * {
