@@ -1,12 +1,13 @@
 /* ============================================================
- * LEFT HERE — Tab Bar Component
- * Bottom navigation with 4 tabs, 56px high, safe area padding.
+ * THEY WERE HERE — Tab Bar Component
+ * Bottom navigation with 4 tabs, active pill, duotone icons.
  * ============================================================ */
 
+import React from 'react';
 import { useLocation } from 'wouter';
 import {
   MapTrifold,
-  BookOpen,
+  BookBookmark,
   Trophy,
   UserCircle,
 } from '@phosphor-icons/react';
@@ -17,27 +18,18 @@ interface TabBarProps {
   onTabChange: (tab: TabId) => void;
 }
 
-const TABS: { id: TabId; label: string; icon: typeof MapTrifold; path: string }[] = [
-  { id: 'map', label: 'Map', icon: MapTrifold, path: '/' },
-  { id: 'passport', label: 'Passport', icon: BookOpen, path: '/passport' },
-  { id: 'ranks', label: 'Ranks', icon: Trophy, path: '/ranks' },
-  { id: 'me', label: 'Me', icon: UserCircle, path: '/me' },
-];
+const TABS = [
+  { id: 'map', icon: MapTrifold, label: 'Map', path: '/' },
+  { id: 'passport', icon: BookBookmark, label: 'Passport', path: '/passport' },
+  { id: 'ranks', icon: Trophy, label: 'Ranks', path: '/ranks' },
+  { id: 'me', icon: UserCircle, label: 'Me', path: '/me' },
+] as const;
 
-export function TabBar({ active, onTabChange }: TabBarProps) {
+export const TabBar: React.FC<TabBarProps> = ({ active, onTabChange }) => {
   const [, navigate] = useLocation();
 
   return (
-    <nav
-      className="glass safe-bottom flex items-center justify-around"
-      style={{
-        height: 56,
-        borderRadius: '20px 20px 0 0',
-        borderBottom: 'none',
-      }}
-      role="tablist"
-      aria-label="Main navigation"
-    >
+    <nav className="tab-bar" role="tablist" aria-label="Main navigation">
       {TABS.map(({ id, label, icon: Icon, path }) => {
         const isActive = active === id;
         return (
@@ -47,26 +39,16 @@ export function TabBar({ active, onTabChange }: TabBarProps) {
             aria-selected={isActive}
             aria-label={label}
             id={`tab-${id}`}
-            className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-opacity"
-            style={{
-              opacity: isActive ? 1 : 0.5,
-              minWidth: 48,
-              minHeight: 48,
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              color: isActive ? 'var(--color-hanko)' : 'white',
-              fontFamily: 'var(--font-display)',
-              fontSize: 'var(--font-size-xs)',
-            }}
+            className={`tab-item ${isActive ? 'active' : ''}`}
             onClick={() => {
               onTabChange(id);
               navigate(path);
             }}
           >
             <Icon
-              size={24}
-              weight={isActive ? 'fill' : 'regular'}
+              size={22}
+              weight={isActive ? 'duotone' : 'regular'}
+              color={isActive ? 'var(--hanko)' : 'currentColor'}
             />
             <span>{label}</span>
           </button>
@@ -74,4 +56,4 @@ export function TabBar({ active, onTabChange }: TabBarProps) {
       })}
     </nav>
   );
-}
+};

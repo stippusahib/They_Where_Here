@@ -32,3 +32,8 @@ export function hapticSlam(): void {
 export function hapticToggle(): void {
   triggerHaptic(10);
 }
+
+/** Success burst — used for note seal and reveal */
+export function vibrateSuccess(): void {
+  triggerHaptic([20, 40, 20, 40, 30]);
+}

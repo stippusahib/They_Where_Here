@@ -1,5 +1,5 @@
 /* ============================================================
- * LEFT HERE — Global State (Zustand)
+ * THEY WERE HERE — Global State (Zustand)
  * ============================================================ */
 
 import { create } from 'zustand';
@@ -9,10 +9,12 @@ import type {
   AppConfig,
   ProximityState,
   SkyTheme,
-  MapNote,
   TabId,
+  PassportNote,
 } from '@/contracts/types';
 import { DEFAULT_CONFIG } from '@/config/rules';
+import { VENUE_CENTER } from '@/config/venue';
+import { SEED_NOTES, INITIAL_PASSPORT_NOTES, type ExtendedNote } from '@/lib/seedNotes';
 
 interface AppState {
   /* ── Auth & Profile ───────────────────────────────────── */
@@ -29,7 +31,7 @@ interface AppState {
   locationPermission: PermissionState | 'unknown';
   setLocationPermission: (state: PermissionState | 'unknown') => void;
 
-  /* ── Simulation ───────────────────────────────────────── */
+  /* ── Simulation / Stage Mode ──────────────────────────── */
   isSimulated: boolean;
   setSimulated: (val: boolean) => void;
 
@@ -38,12 +40,26 @@ interface AppState {
   setOffline: (val: boolean) => void;
 
   /* ── Map Notes ────────────────────────────────────────── */
-  notes: MapNote[];
-  setNotes: (notes: MapNote[]) => void;
+  notes: ExtendedNote[];
+  setNotes: (notes: ExtendedNote[]) => void;
+  addNoteLocally: (note: ExtendedNote) => void;
+  unlockNoteLocally: (noteId: string) => ExtendedNote | undefined;
+
+  /* ── Passport ─────────────────────────────────────────── */
+  passportNotes: PassportNote[];
+  addPassportNote: (note: PassportNote) => void;
+
+  /* ── Modals & Overlays ────────────────────────────────── */
+  activeInspectNote: ExtendedNote | null;
+  setActiveInspectNote: (note: ExtendedNote | null) => void;
+  activeRevealNote: ExtendedNote | null;
+  setActiveRevealNote: (note: ExtendedNote | null) => void;
+  isCreateNoteOpen: boolean;
+  setIsCreateNoteOpen: (val: boolean) => void;
 
   /* ── Proximity ────────────────────────────────────────── */
-  nearestNote: MapNote | null;
-  setNearestNote: (note: MapNote | null) => void;
+  nearestNote: ExtendedNote | null;
+  setNearestNote: (note: ExtendedNote | null) => void;
   proximityState: ProximityState;
   setProximityState: (state: ProximityState) => void;
   distanceToNearest: number | null;
@@ -76,9 +92,28 @@ interface AppState {
   setAudioUnlocked: (val: boolean) => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
+const DEFAULT_PROFILE: UserProfile = {
+  id: 'guest-traveller-1',
+  handle: 'swift_fox',
+  avatar: 1,
+  xp: 140,
+  unlock_count: 1,
+  worth_received: 3,
+  rerolls_used: 0,
+  created_at: new Date().toISOString(),
+};
+
+const DEFAULT_POSITION: GeoPosition = {
+  lat: VENUE_CENTER.lat,
+  lng: VENUE_CENTER.lng,
+  accuracy: 14,
+  heading: 45,
+  timestamp: Date.now(),
+};
+
+export const useAppStore = create<AppState>((set, get) => ({
   // Auth
-  profile: null,
+  profile: DEFAULT_PROFILE,
   setProfile: (profile) => set({ profile }),
 
   // Config
@@ -86,9 +121,9 @@ export const useAppStore = create<AppState>((set) => ({
   setConfig: (config) => set({ config }),
 
   // Location
-  position: null,
+  position: DEFAULT_POSITION,
   setPosition: (position) => set({ position }),
-  locationPermission: 'unknown',
+  locationPermission: 'granted',
   setLocationPermission: (locationPermission) => set({ locationPermission }),
 
   // Simulation
@@ -96,19 +131,72 @@ export const useAppStore = create<AppState>((set) => ({
   setSimulated: (isSimulated) => set({ isSimulated }),
 
   // Connectivity
-  isOffline: !navigator.onLine,
+  isOffline: false,
   setOffline: (isOffline) => set({ isOffline }),
 
   // Map notes
-  notes: [],
+  notes: SEED_NOTES,
   setNotes: (notes) => set({ notes }),
+  addNoteLocally: (newNote) =>
+    set((state) => ({
+      notes: [newNote, ...state.notes],
+      profile: state.profile
+        ? { ...state.profile, xp: state.profile.xp + 50 }
+        : null,
+    })),
+  unlockNoteLocally: (noteId) => {
+    const state = get();
+    const target = state.notes.find((n) => n.id === noteId);
+    if (!target) return undefined;
+
+    const updatedNote = { ...target, unlocked: true };
+    const passportEntry: PassportNote = {
+      id: target.id,
+      body: target.body,
+      rarity: target.rarity,
+      stamp: target.stamp,
+      tone: target.tone,
+      unlocked_at: new Date().toISOString(),
+      unlock_count: target.unlock_count + 1,
+      worth_yes: target.worth_yes,
+      worth_no: target.worth_no,
+      is_seed: target.is_seed,
+    };
+
+    set({
+      notes: state.notes.map((n) => (n.id === noteId ? updatedNote : n)),
+      passportNotes: [passportEntry, ...state.passportNotes],
+      profile: state.profile
+        ? {
+            ...state.profile,
+            xp: state.profile.xp + 25,
+            unlock_count: state.profile.unlock_count + 1,
+          }
+        : null,
+    });
+
+    return updatedNote;
+  },
+
+  // Passport
+  passportNotes: INITIAL_PASSPORT_NOTES,
+  addPassportNote: (note) =>
+    set((s) => ({ passportNotes: [note, ...s.passportNotes] })),
+
+  // Modals
+  activeInspectNote: null,
+  setActiveInspectNote: (activeInspectNote) => set({ activeInspectNote }),
+  activeRevealNote: null,
+  setActiveRevealNote: (activeRevealNote) => set({ activeRevealNote }),
+  isCreateNoteOpen: false,
+  setIsCreateNoteOpen: (isCreateNoteOpen) => set({ isCreateNoteOpen }),
 
   // Proximity
-  nearestNote: null,
+  nearestNote: SEED_NOTES[0] ?? null,
   setNearestNote: (nearestNote) => set({ nearestNote }),
-  proximityState: 'far',
+  proximityState: 'near',
   setProximityState: (proximityState) => set({ proximityState }),
-  distanceToNearest: null,
+  distanceToNearest: 38,
   setDistanceToNearest: (distanceToNearest) => set({ distanceToNearest }),
 
   // Sky
