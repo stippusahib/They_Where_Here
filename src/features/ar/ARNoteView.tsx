@@ -17,7 +17,6 @@ import {
   NavigationArrow,
   MapTrifold,
   Sparkle,
-  Plus,
   Crosshair,
   Sun,
   MapPin,
@@ -25,6 +24,7 @@ import {
   ArrowRight,
   ShieldWarning,
   Footprints,
+  PaperPlaneTilt,
 } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import { haversineDistance, bearing, formatDistance, toCardinal } from '@/lib/geo';
@@ -176,28 +176,45 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // ── 3. DEVICE ORIENTATION & COMPASS ─────────────────────────────
+  // ── 3. DEVICE ORIENTATION & COMPASS (Physical Geomagnetic Lock) ──
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
       const anyEvent = e as unknown as { webkitCompassHeading?: number };
+      let heading: number | null = null;
+
       if (typeof anyEvent.webkitCompassHeading === 'number') {
-        const h = anyEvent.webkitCompassHeading;
-        deviceHeadingRef.current = h;
-        setDeviceHeading(h);
-      } else if (e.alpha !== null) {
-        const h = (360 - e.alpha) % 360;
-        deviceHeadingRef.current = h;
-        setDeviceHeading(h);
+        // iOS Safari gives 0-360 true compass heading directly:
+        heading = anyEvent.webkitCompassHeading;
+      } else if (typeof e.alpha === 'number') {
+        // Android / W3C standard: alpha rotates counter-clockwise from North
+        heading = (360 - e.alpha + 360) % 360;
       }
 
-      if (typeof e.beta === 'number') {
+      if (heading !== null && !isNaN(heading)) {
+        deviceHeadingRef.current = heading;
+        setDeviceHeading(heading);
+      }
+
+      if (typeof e.beta === 'number' && !isNaN(e.beta)) {
         // e.beta represents pitch: ~75° to 90° when holding phone upright in hand
-        devicePitchRef.current = THREE.MathUtils.clamp(e.beta, 10, 150);
+        devicePitchRef.current = THREE.MathUtils.clamp(e.beta, 20, 160);
       }
     };
 
-    window.addEventListener('deviceorientation', handleOrientation);
-    return () => window.removeEventListener('deviceorientation', handleOrientation);
+    const targetWindow = window as unknown as EventTarget;
+    const isAbsoluteSupported = typeof (window as unknown as Record<string, unknown>).ondeviceorientationabsolute !== 'undefined';
+
+    // Use absolute orientation when supported (Android Chrome), fallback to deviceorientation
+    if (isAbsoluteSupported) {
+      targetWindow.addEventListener('deviceorientationabsolute', handleOrientation as EventListener);
+    } else {
+      targetWindow.addEventListener('deviceorientation', handleOrientation as EventListener);
+    }
+
+    return () => {
+      targetWindow.removeEventListener('deviceorientationabsolute', handleOrientation as EventListener);
+      targetWindow.removeEventListener('deviceorientation', handleOrientation as EventListener);
+    };
   }, []);
 
   // ── 4. CAMERA STREAM INITIALIZATION ─────────────────────────────
@@ -269,7 +286,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(58, width / height, 0.1, 1000);
-    camera.position.set(0, 0, 5.2);
+    camera.position.set(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setSize(width, height);
@@ -388,69 +405,66 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       animId = requestAnimationFrame(animate);
       const time = clock.getElapsedTime();
 
-      // Slow 360 spin + smooth floating hover
-      noteMesh.rotation.y = time * 0.8;
-      noteMesh.rotation.x = Math.sin(time * 1.2) * 0.15;
-      noteMesh.position.y = Math.sin(time * 2.0) * 0.25;
+      // Slow, steady local 360 spin in place (calm, stable hover, zero position jitter)
+      noteMesh.rotation.y = time * 0.6;
+      noteMesh.rotation.x = 0;
+      noteMesh.position.y = 0;
 
       if (sealMesh) {
-        sealMesh.position.y = noteMesh.position.y;
+        sealMesh.position.y = 0;
         sealMesh.rotation.y = noteMesh.rotation.y;
       }
       if (qMarkMesh) {
-        qMarkMesh.position.y = noteMesh.position.y;
-        qMarkMesh.rotation.y = time * 0.8;
+        qMarkMesh.position.y = 0;
+        qMarkMesh.rotation.y = time * 0.6;
       }
 
-      // Proximity pulse
-      const pulseSpeed = isHere ? 4.5 : 2.0;
-      const pulseScale = 1.0 + Math.sin(time * pulseSpeed) * (isHere ? 0.08 : 0.03);
-      noteGroup.scale.set(pulseScale, pulseScale, pulseScale);
-
-      // Expand ground shockwave rings
-      const ringScale = 1.0 + (time % 2.0) * 0.6;
+      // Ground shockwave rings (slow expansion on floor)
+      const ringScale = 1.0 + (time % 2.5) * 0.4;
       ringMesh.scale.set(ringScale, ringScale, ringScale);
-      ringMat.opacity = Math.max(0, 0.8 - (time % 2.0) * 0.4);
+      ringMat.opacity = Math.max(0, 0.6 - (time % 2.5) * 0.24);
 
-      // ── Real Physical 3D World Space Placement ──
-      // Smoothly track device heading and pitch without rebuilding WebGL scene
+      // ── Physical 1:1 3D World Space Placement ──
       const targetH = deviceHeadingRef.current;
       const targetP = devicePitchRef.current;
 
-      // Smallest angle diff for shortest turn lerp:
+      // Responsive smoothing (0.4 turns cleanly with phone, eliminating sluggish drifting)
       const headingDiffToSmooth = ((targetH - currentHeadingRef.current + 540) % 360) - 180;
-      currentHeadingRef.current += headingDiffToSmooth * 0.15;
-      currentPitchRef.current = THREE.MathUtils.lerp(currentPitchRef.current, targetP, 0.15);
+      currentHeadingRef.current += headingDiffToSmooth * 0.4;
+      currentPitchRef.current = THREE.MathUtils.lerp(currentPitchRef.current, targetP, 0.4);
 
       // Bearing difference between note physical coordinate and user view direction (-180 to +180)
       const diffAzimuth = ((targetBearingRef.current - currentHeadingRef.current + 540) % 360) - 180;
       const radH = (diffAzimuth * Math.PI) / 180;
 
-      // Pitch difference relative to eye level (~78 degrees when holding phone upright)
-      const diffElevation = currentPitchRef.current - 78;
+      // Pitch difference relative to eye level (~80 degrees when holding phone upright)
+      // Tilting phone UP (targetP > 80) shifts object DOWN (negative Y)
+      const diffElevation = currentPitchRef.current - 80;
       const radP = (diffElevation * Math.PI) / 180;
 
-      // True 3D spatial spherical placement (Radius 4.5 meters in world space)
-      const R = 4.5;
-      noteGroup.position.x = R * Math.sin(radH);
-      noteGroup.position.y = -R * Math.sin(radP) + Math.sin(time * 2.0) * 0.18;
-      noteGroup.position.z = -R * Math.cos(radH);
+      // True 1:1 Physical 3D Spatial Spherical Anchoring (4.0m world radius)
+      // Camera is at (0, 0, 0); object coordinates match real-world azimuth & elevation exactly
+      const R = 4.0;
+      noteGroup.position.x = R * Math.sin(radH) * Math.cos(radP);
+      noteGroup.position.y = -R * Math.sin(radP) - 0.25;
+      noteGroup.position.z = -R * Math.cos(radH) * Math.cos(radP);
 
       // Project 3D vector to 2D screen coordinate for callout HUD card
       const tempV = new THREE.Vector3();
       tempV.setFromMatrixPosition(noteMesh.matrixWorld);
-      tempV.y += 1.4;
+      tempV.y += 1.3;
       tempV.project(camera);
 
-      // Object is behind or too far to side when z is near 0 / positive or angle is large
-      const isBehindOrOffscreen = noteGroup.position.z > -1.2 || Math.abs(diffAzimuth) > 65;
+      // Object is in front of camera if z is negative, and on screen if projected NDC in [-1.05, 1.05]
+      const isInFront = noteGroup.position.z < -0.3;
+      const isOnScreen = isInFront && Math.abs(tempV.x) <= 1.05 && Math.abs(tempV.y) <= 1.05;
       const screenX = ((tempV.x + 1) * width) / 2;
       const screenY = ((-tempV.y + 1) * height) / 2;
 
       setTagScreenPos({
         x: screenX,
         y: screenY,
-        visible: !isBehindOrOffscreen,
+        visible: isOnScreen,
       });
 
       renderer.render(scene, camera);
@@ -957,24 +971,14 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
           </div>
         )}
 
-        {/* Primary Action Buttons (2-Column Grid to prevent clipping) */}
-        <div className="grid grid-cols-12 gap-2 items-center w-full">
-          {/* Quick Return to 2D Map */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="col-span-4 h-12 rounded-xl flex items-center justify-center gap-1.5 bg-white text-[var(--ink-900)] font-headline font-bold text-xs shadow-md border border-[#14143A]/15 cursor-pointer active:scale-95 transition-transform"
-          >
-            <MapTrifold size={16} weight="bold" />
-            <span>2D Map</span>
-          </button>
-
-          {/* Contextual Primary Action */}
+        {/* Tactical Bottom Action Deck: Contextual Touch + 2D Map + Leave Note */}
+        <div className="flex flex-col gap-2 w-full">
+          {/* Contextual Primary Action: Touch / Dispel / Walk Alert */}
           {targetNote && canTouchOrRead ? (
             <button
               type="button"
               onClick={handleTouchNote}
-              className="col-span-8 h-12 slant-btn slant-btn--primary flex items-center justify-center gap-2 shadow-xl animate-pulse cursor-pointer text-xs font-bold"
+              className="w-full h-12 slant-btn slant-btn--primary flex items-center justify-center gap-2 shadow-xl animate-pulse cursor-pointer text-xs font-bold"
             >
               <Sparkle size={16} weight="fill" />
               <span>
@@ -986,26 +990,35 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
               </span>
             </button>
           ) : targetNote && !isBeyond5Min ? (
+            <div className="w-full h-10 rounded-xl bg-white/95 text-[var(--ink-900)] border border-[var(--warn)] shadow-md flex items-center justify-center gap-1.5 text-xs font-bold px-3">
+              <Footprints size={15} weight="bold" color="var(--warn)" />
+              <span className="truncate">
+                Walk within 40m to touch (~{targetWalkingMinutes} min)
+              </span>
+            </div>
+          ) : null}
+
+          {/* Dual Bottom Controls: Always accessible 2D Map & Leave Note */}
+          <div className="grid grid-cols-2 gap-2 items-center w-full">
             <button
               type="button"
-              onClick={handleTouchNote}
-              className="col-span-8 h-12 rounded-xl bg-white/95 text-[var(--ink-900)] border border-[var(--warn)] shadow-md flex items-center justify-center gap-1.5 cursor-pointer text-xs font-bold"
+              onClick={onClose}
+              className="h-11 rounded-xl flex items-center justify-center gap-1.5 bg-white text-[var(--ink-900)] font-headline font-bold text-xs shadow-md border border-[#14143A]/15 cursor-pointer active:scale-95 transition-transform"
             >
-              <Footprints size={16} weight="bold" color="var(--warn)" />
-              <span className="truncate">
-                Walk &lt;40m to Touch (~{targetWalkingMinutes} min)
-              </span>
+              <MapTrifold size={16} weight="bold" />
+              <span>2D Map</span>
             </button>
-          ) : (
+
             <button
               type="button"
               onClick={handleAttemptDrop}
-              className="col-span-8 h-12 slant-btn slant-btn--primary flex items-center justify-center gap-1.5 shadow-xl cursor-pointer text-xs font-bold"
+              className="h-11 rounded-xl flex items-center justify-center gap-1.5 bg-[var(--hanko)] text-white font-headline font-bold text-xs shadow-md border border-white/20 cursor-pointer active:scale-95 transition-transform hover:opacity-95"
+              title="Leave a new note at your current location"
             >
-              <Plus size={16} weight="bold" />
-              <span>Drop Note Here</span>
+              <PaperPlaneTilt size={16} weight="fill" />
+              <span>Leave a note</span>
             </button>
-          )}
+          </div>
         </div>
       </footer>
 
