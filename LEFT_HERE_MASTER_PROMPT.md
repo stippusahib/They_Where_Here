@@ -75,17 +75,17 @@ Image first workflow for UI: reference images (from Stitch or image generation) 
 
 ### 3.1 Thesis and pitch frame
 
-Left Here is travel advice that only works if you are actually there. Travellers drop short anonymous notes pinned to real places. Others see a sealed note on the map, but to read it they must physically walk there. Opening a note triggers a cinematic reveal. Finding notes builds a sticker album and a rank. Travellers who leave notes people call "worth the trip" climb the author board.
+They Were Here is travel advice you can only read by standing where it was written. Travellers drop short anonymous notes pinned to real places. Others see a sealed note on the map, but to read it they must physically walk there. Opening a note triggers a cinematic reveal. Finding notes builds a verified travel passport and a rank. Travellers who leave notes people call "worth the trip" climb the author board.
 
 Problem: tourists crowd the same hotspots, local knowledge stays invisible, and travel stories die in group chats.
 Solution: a living map of place locked human notes that pulls people toward hidden, local, worth it places.
 Impact: spreads visitors beyond overcrowded spots, gives locals and travellers a voice, turns any trip (road, train, boat, flight) into a hunt.
 
 Difference from geocaching and treasure hunt apps (say this in the pitch before a judge says it):
-* No physical containers and no hardware: the note IS the place.
+* Verified-visit review: No containers or hardware. A note unlocks only by visiting, and only people who unlocked it can vote "worth the trip".
 * Anonymous short notes with a reputation system ("worth the trip" votes) that rewards usefulness, not volume.
 * Tiered rarity with territory style spacing: Legendary notes are 20 km apart and claimed, not spammed.
-* Built for moving travellers: mode locked notes (Sky, Sea, Rail) are a stretch feature.
+* Built for moving travellers with dead time on a layover.
 
 ### 3.2 Core loop
 
