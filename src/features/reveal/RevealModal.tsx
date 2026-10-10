@@ -126,6 +126,8 @@ export const RevealModal: React.FC = () => {
           rarity={activeRevealNote.rarity}
           stamp={`#${activeRevealNote.stamp}`}
           unlockCount={activeRevealNote.unlock_count ?? 1}
+          audioUrl={activeRevealNote.audio_url}
+          audioDuration={activeRevealNote.audio_duration}
         />
 
         {/* Voting & Actions */}
