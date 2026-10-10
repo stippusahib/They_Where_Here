@@ -1,0 +1,254 @@
+/* ============================================================
+ * LEFT HERE — Design Tokens
+ * Art direction: "Dusk Postcard"
+ * Single source of truth for all colors, typography, spacing.
+ * Components NEVER hardcode hex values — use these variables.
+ * ============================================================ */
+
+@import "tailwindcss";
+
+@theme {
+  /* ── Core Ink & Paper ─────────────────────────────────── */
+  --color-ink-900: #0F1230;
+  --color-ink-700: #1E2352;
+  --color-ink-500: #3B4A8C;
+  --color-paper: #FFF3D6;
+  --color-paper-edge: #F2DDB0;
+  --color-line: #14143A;
+
+  /* ── Rarity ───────────────────────────────────────────── */
+  --color-common: #FFF3D6;
+  --color-rare: #35B6FF;
+  --color-legendary: #FFC93C;
+
+  /* ── State & Action ───────────────────────────────────── */
+  --color-hanko: #E8264C;
+  --color-mint: #5EE2B5;
+  --color-warn: #FF9E3D;
+
+  /* ── Sky Themes (used by overlays) ────────────────────── */
+  --color-sky-night-deep: #0F1230;
+  --color-sky-night-mid: #26307A;
+  --color-sky-night-light: #5B6FD6;
+
+  --color-sky-dawn-warm: #FFD6A5;
+  --color-sky-dawn-mid: #FF9E7A;
+  --color-sky-dawn-accent: #F2557A;
+
+  --color-sky-day-light: #A7DEFF;
+  --color-sky-day-mid: #D8F1FF;
+  --color-sky-day-warm: #FFF7EA;
+
+  --color-sky-golden-bright: #FFE08A;
+  --color-sky-golden-mid: #FF9E7A;
+  --color-sky-golden-accent: #E9507B;
+
+  /* ── Typography Scale ─────────────────────────────────── */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.75rem;
+  --font-size-2xl: 2.5rem;
+  --font-size-3xl: 4rem;
+
+  /* ── Radii ────────────────────────────────────────────── */
+  --radius-panel: 20px;
+  --radius-chip: 999px;
+  --radius-sticker: 14px;
+
+  /* ── Surfaces ─────────────────────────────────────────── */
+  --glass-bg: rgba(18, 20, 58, 0.60);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  --glass-blur: 14px;
+
+  /* ── Font families ────────────────────────────────────── */
+  --font-display: 'Dela Gothic One', system-ui, sans-serif;
+  --font-body: 'Zen Maru Gothic', 'Noto Sans Malayalam', 'Noto Sans Devanagari', system-ui, sans-serif;
+}
+
+/* ── Base Reset ─────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  font-weight: 500;
+  color: var(--color-ink-900);
+  background: var(--color-sky-night-deep);
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Glass Panel ────────────────────────────────────────── */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-panel);
+  color: white;
+}
+
+/* ── Sticker Card Base ──────────────────────────────────── */
+.sticker {
+  background: var(--color-paper);
+  border: 3px solid var(--color-line);
+  outline: 4px solid white;
+  border-radius: var(--radius-sticker);
+  box-shadow: 0 4px 24px rgba(15, 18, 48, 0.18);
+}
+
+.sticker--rare {
+  border-color: var(--color-rare);
+  box-shadow: 0 4px 24px rgba(53, 182, 255, 0.25);
+}
+
+.sticker--legendary {
+  border-color: var(--color-legendary);
+  box-shadow: 0 4px 24px rgba(255, 201, 60, 0.30);
+}
+
+/* ── Slant Button ───────────────────────────────────────── */
+.slant-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 28px;
+  font-family: var(--font-display);
+  font-size: var(--font-size-base);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: none;
+  cursor: pointer;
+  clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
+  transition: transform 0.12s ease, opacity 0.12s ease;
+  min-height: 48px;
+  min-width: 48px;
+}
+
+.slant-btn:active {
+  transform: scale(0.98) translateY(1px);
+}
+
+.slant-btn--primary {
+  background: var(--color-hanko);
+  color: white;
+}
+
+.slant-btn--secondary {
+  background: var(--color-ink-700);
+  color: white;
+}
+
+.slant-btn--ghost {
+  background: transparent;
+  color: var(--color-ink-900);
+  border: 2px solid var(--color-ink-500);
+}
+
+/* ── Rarity Tag ─────────────────────────────────────────── */
+.rarity-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  font-family: var(--font-display);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-radius: var(--radius-chip);
+  font-weight: 700;
+}
+
+.rarity-tag--common {
+  background: var(--color-common);
+  color: var(--color-ink-900);
+}
+
+.rarity-tag--rare {
+  background: var(--color-rare);
+  color: white;
+}
+
+.rarity-tag--legendary {
+  background: var(--color-legendary);
+  color: var(--color-ink-900);
+}
+
+/* ── Focus Ring ─────────────────────────────────────────── */
+:focus-visible {
+  outline: 3px solid var(--color-rare);
+  outline-offset: 2px;
+}
+
+/* ── Reduced Motion ─────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Safe Area Insets ───────────────────────────────────── */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* ── Halftone Texture Overlay ───────────────────────────── */
+.halftone::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, var(--color-ink-900) 1px, transparent 1px);
+  background-size: 6px 6px;
+  opacity: 0.06;
+  z-index: 9999;
+}
+
+/* ── Shimmer Skeleton ───────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-sky-night-mid) 25%,
+    var(--color-sky-night-light) 50%,
+    var(--color-sky-night-mid) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-panel);
+}
