@@ -121,7 +121,8 @@ export function CreateNoteModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm safe-top safe-bottom animate-fade-in"
+      className="fixed inset-0 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm safe-top safe-bottom animate-fade-in"
+      style={{ zIndex: 'var(--z-onboarding, 90)' }}
       onClick={() => setIsCreateNoteOpen(false)}
     >
       <div

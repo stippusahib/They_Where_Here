@@ -25,9 +25,11 @@ import {
   ShieldWarning,
   Footprints,
   PaperPlaneTilt,
+  Target,
 } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import { haversineDistance, bearing, formatDistance, toCardinal } from '@/lib/geo';
+import { hapticTap } from '@/lib/haptics';
 import type { ExtendedNote } from '@/lib/seedNotes';
 import { APP_NAME, POKEMON_GO_TOUCH_RADIUS_METERS } from '@/contracts/types';
 import { AppLogo } from '@/ui/components/AppLogo';
@@ -102,6 +104,13 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
   const currentPitchRef = useRef<number>(78);
   const targetBearingRef = useRef<number>(0);
 
+  // Surface Lock-In state (locks 3D note onto user's desk/surface in front of them)
+  const [isSurfaceLocked, setIsSurfaceLocked] = useState(false);
+  const isSurfaceLockedRef = useRef(false);
+  const lockedWorldHeadingRef = useRef(0);
+  const [isReticleLockedOn, setIsReticleLockedOn] = useState(false);
+  const wasReticleLockedRef = useRef(false);
+
   // ── 1. REAL-TIME ACCURACY TIER ASSESSMENT ──────────────────────
   const accuracyMeters = position?.accuracy ?? 15;
   const accuracyTier: 'high' | 'moderate' | 'low' =
@@ -141,8 +150,9 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
 
   // Bearing difference relative to device heading (-180 to +180)
   const bearingDiff = useMemo(() => {
-    return ((targetBearing - deviceHeading + 540) % 360) - 180;
-  }, [targetBearing, deviceHeading]);
+    const effBear = isSurfaceLocked ? lockedWorldHeadingRef.current : targetBearing;
+    return ((effBear - deviceHeading + 540) % 360) - 180;
+  }, [targetBearing, deviceHeading, isSurfaceLocked]);
 
   // Note relationship
   const isMine = Boolean(
@@ -174,6 +184,22 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Toggle surface lock-in (pins object to current view center in real physical space)
+  const toggleSurfaceLock = () => {
+    if (!isSurfaceLockedRef.current) {
+      lockedWorldHeadingRef.current = currentHeadingRef.current;
+      isSurfaceLockedRef.current = true;
+      setIsSurfaceLocked(true);
+      hapticTap();
+      showToast('Note anchored in front of you! Pan phone to inspect.');
+    } else {
+      isSurfaceLockedRef.current = false;
+      setIsSurfaceLocked(false);
+      hapticTap();
+      showToast('Unlocked to compass bearing.');
+    }
   };
 
   // ── 3. DEVICE ORIENTATION & COMPASS (Physical Geomagnetic Lock) ──
@@ -230,8 +256,9 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+            width: { ideal: 1920, min: 1280 },
+            height: { ideal: 1080, min: 720 },
+            frameRate: { ideal: 60, min: 30 },
           },
           audio: false,
         });
@@ -239,6 +266,8 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
         mediaStreamRef.current = stream;
 
         if (videoRef.current) {
+          videoRef.current.setAttribute('playsinline', 'true');
+          videoRef.current.setAttribute('webkit-playsinline', 'true');
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
           setCameraActive(true);
@@ -288,9 +317,14 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     const camera = new THREE.PerspectiveCamera(58, width / height, 0.1, 1000);
     camera.position.set(0, 0, 0);
 
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    const renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true,
+      powerPreference: 'high-performance',
+      precision: 'highp',
+    });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 2.0);
@@ -434,13 +468,25 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       currentPitchRef.current = THREE.MathUtils.lerp(currentPitchRef.current, targetP, 0.4);
 
       // Bearing difference between note physical coordinate and user view direction (-180 to +180)
-      const diffAzimuth = ((targetBearingRef.current - currentHeadingRef.current + 540) % 360) - 180;
+      const effectiveBearing = isSurfaceLockedRef.current
+        ? lockedWorldHeadingRef.current
+        : targetBearingRef.current;
+
+      const diffAzimuth = ((effectiveBearing - currentHeadingRef.current + 540) % 360) - 180;
       const radH = (diffAzimuth * Math.PI) / 180;
 
       // Pitch difference relative to eye level (~80 degrees when holding phone upright)
       // Tilting phone UP (targetP > 80) shifts object DOWN (negative Y)
       const diffElevation = currentPitchRef.current - 80;
       const radP = (diffElevation * Math.PI) / 180;
+
+      // Reticle Lock-On Detection
+      const isLockedOn = Math.abs(diffAzimuth) < 13 && Math.abs(diffElevation) < 15;
+      if (isLockedOn !== wasReticleLockedRef.current) {
+        if (isLockedOn) hapticTap();
+        wasReticleLockedRef.current = isLockedOn;
+        setIsReticleLockedOn(isLockedOn);
+      }
 
       // True 1:1 Physical 3D Spatial Spherical Anchoring (4.0m world radius)
       // Camera is at (0, 0, 0); object coordinates match real-world azimuth & elevation exactly
@@ -736,8 +782,29 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
             </div>
           </div>
 
-          {/* Right Controls: Torch & Close */}
+          {/* Right Controls: Surface Lock, Torch & Close */}
           <div className="flex items-center gap-1.5 pointer-events-auto">
+            <button
+              type="button"
+              onClick={toggleSurfaceLock}
+              className={`px-2.5 h-8 rounded-full flex items-center gap-1 text-[11px] font-mono font-bold shadow-md border cursor-pointer active:scale-95 transition-all ${
+                isSurfaceLocked
+                  ? 'bg-[#14143A] text-white border-[var(--mint)] ring-2 ring-[var(--mint)]/40'
+                  : 'bg-white/95 text-[var(--ink-700)] border-[#14143A]/15'
+              }`}
+              title={isSurfaceLocked ? 'Unlock note to compass' : 'Anchor note to surface / desk in front'}
+              aria-label="Toggle Surface Lock"
+            >
+              <Target
+                size={14}
+                weight={isSurfaceLocked ? 'fill' : 'bold'}
+                color={isSurfaceLocked ? 'var(--mint)' : 'currentColor'}
+              />
+              <span className="hidden sm:inline">
+                {isSurfaceLocked ? 'LOCKED' : 'LOCK IN'}
+              </span>
+            </button>
+
             <button
               type="button"
               onClick={toggleTorch}
@@ -871,26 +938,38 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       <div className="relative z-20 flex-1 flex flex-col items-center justify-center pointer-events-none">
         <div className="flex flex-col items-center gap-2">
           <div
-            className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center transition-all animate-spin-slow"
+            className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
+              isReticleLockedOn
+                ? 'border-2 border-solid scale-105'
+                : 'border-2 border-dashed animate-spin-slow'
+            }`}
             style={{
-              borderColor: isBeyond5Min
+              borderColor: isReticleLockedOn
+                ? 'var(--mint)'
+                : isBeyond5Min
                 ? '#FF6B6B'
                 : isHere
                 ? 'var(--mint)'
                 : isMysteryLocked
                 ? '#00F2FE'
                 : 'rgba(255, 255, 255, 0.75)',
-              boxShadow: isHere
+              boxShadow: isReticleLockedOn
+                ? '0 0 35px var(--mint), inset 0 0 15px rgba(94, 226, 181, 0.4)'
+                : isHere
                 ? '0 0 25px var(--mint)'
                 : isMysteryLocked
                 ? '0 0 20px #6E44FF'
                 : '0 4px 16px rgba(15, 18, 48, 0.15)',
+              background: isReticleLockedOn ? 'rgba(94, 226, 181, 0.12)' : 'transparent',
             }}
           >
             <Crosshair
               size={26}
+              weight={isReticleLockedOn ? 'bold' : 'regular'}
               color={
-                isBeyond5Min
+                isReticleLockedOn
+                  ? 'var(--mint)'
+                  : isBeyond5Min
                   ? '#FF6B6B'
                   : isHere
                   ? 'var(--mint)'
@@ -902,15 +981,25 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
           </div>
 
           <span
-            className="text-[10px] font-mono font-bold px-3 py-1 rounded-full shadow-md backdrop-blur-md"
+            className="text-[10px] font-mono font-bold px-3 py-1 rounded-full shadow-md backdrop-blur-md transition-all"
             style={{
-              background: isBeyond5Min
+              background: isReticleLockedOn
+                ? 'var(--mint)'
+                : isBeyond5Min
                 ? 'rgba(255, 107, 107, 0.90)'
                 : 'rgba(255, 255, 255, 0.92)',
-              color: isBeyond5Min ? '#FFFFFF' : 'var(--ink-900)',
+              color: isReticleLockedOn
+                ? '#14143A'
+                : isBeyond5Min
+                ? '#FFFFFF'
+                : 'var(--ink-900)',
             }}
           >
-            {isBeyond5Min
+            {isReticleLockedOn && canTouchOrRead
+              ? isMine
+                ? 'TARGET LOCKED • TAP TO INSPECT'
+                : 'TARGET LOCKED • TAP TO TOUCH'
+              : isBeyond5Min
               ? '> 5 MIN WALK • WALK CLOSER VIA 2D MAP'
               : canTouchOrRead
               ? isMine

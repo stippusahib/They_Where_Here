@@ -52,9 +52,11 @@ export const MapTab: React.FC = () => {
   const toggleSound = useAppStore((s) => s.toggleSound);
   const isSimulated = useAppStore((s) => s.isSimulated);
   const layoverHours = useAppStore((s) => s.layoverHours);
+  const isCreateNoteOpen = useAppStore((s) => s.isCreateNoteOpen);
   const setIsCreateNoteOpen = useAppStore((s) => s.setIsCreateNoteOpen);
   const activeInspectNote = useAppStore((s) => s.activeInspectNote);
   const setActiveInspectNote = useAppStore((s) => s.setActiveInspectNote);
+  const activeRevealNote = useAppStore((s) => s.activeRevealNote);
   const setActiveRevealNote = useAppStore((s) => s.setActiveRevealNote);
 
   const [isListView, setIsListView] = useState(false);
@@ -420,19 +422,21 @@ export const MapTab: React.FC = () => {
         </div>
       )}
 
-      {/* Floating Action Button: Leave a note (Docks above ArrivedBar when in range) */}
-      <button
-        className={`fab-leave-note ${
-          nearestNote && nearestDistance !== null && nearestDistance <= POKEMON_GO_TOUCH_RADIUS_METERS
-            ? 'fab-leave-note--docked'
-            : ''
-        }`}
-        onClick={() => setIsCreateNoteOpen(true)}
-        aria-label="Leave a note"
-      >
-        <PaperPlaneTilt size={18} weight="fill" />
-        <span>Leave a note</span>
-      </button>
+      {/* Floating Action Button: Leave a note (Hidden when modal or sheet is open) */}
+      {!isCreateNoteOpen && !isLayoverSheetOpen && !activeInspectNote && !activeRevealNote && (
+        <button
+          className={`fab-leave-note ${
+            nearestNote && nearestDistance !== null && nearestDistance <= POKEMON_GO_TOUCH_RADIUS_METERS
+              ? 'fab-leave-note--docked'
+              : ''
+          }`}
+          onClick={() => setIsCreateNoteOpen(true)}
+          aria-label="Leave a note"
+        >
+          <PaperPlaneTilt size={18} weight="fill" />
+          <span>Leave a note</span>
+        </button>
+      )}
     </>
   )}
 

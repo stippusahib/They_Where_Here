@@ -18,7 +18,7 @@ export const POKEMON_GO_APPROACH_RADIUS_METERS = 80 as const;
 export const POKEMON_GO_RADAR_RADIUS_METERS = 350 as const;
 
 /** Minimum characters required for note text */
-export const MIN_NOTE_CHARS = 3 as const;
+export const MIN_NOTE_CHARS = 15 as const;
 
 /** Maximum voice recording limit in seconds */
 export const MAX_VOICE_DURATION_SECONDS = 30 as const;
