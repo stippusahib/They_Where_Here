@@ -1,10 +1,10 @@
 /* ============================================================
- * THEY WERE HERE — Orb Inspection Sheet (P0)
+ * THEY WERE HERE — Orb Inspection Sheet (Light Theme & Voice)
  * Peek/modal sheet shown when tapping an orb on the map.
  * Server authoritative: NEVER displays note body before unlock!
  * ============================================================ */
 
-import { X, LockKey, Sparkle, Flag, Footprints } from '@phosphor-icons/react';
+import { X, LockKey, Sparkle, Flag, Footprints, SpeakerHigh } from '@phosphor-icons/react';
 import { RarityTag } from '@/ui/components/RarityTag';
 import { useAppStore } from '@/state/store';
 import { formatDistance } from '@/lib/geo';
@@ -29,25 +29,20 @@ export function OrbSheet({ note, distanceMeters, onClose, onOpenNote }: OrbSheet
       ? Math.round((note.worth_yes / totalVotes) * 100)
       : null;
 
-  const rarityColor =
-    note.rarity === 'legendary'
-      ? 'var(--color-legendary)'
-      : note.rarity === 'rare'
-      ? 'var(--color-rare)'
-      : 'var(--color-common)';
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-end justify-center p-4 bg-black/50 backdrop-blur-sm safe-bottom animate-fade-in"
+      className="fixed inset-0 z-40 flex items-end justify-center p-4 bg-black/40 backdrop-blur-sm safe-bottom animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="glass w-full max-w-sm p-5 flex flex-col gap-4 text-left relative"
+        className="w-full max-w-sm p-5 flex flex-col gap-4 text-left relative"
         style={{
           borderRadius: 'var(--radius-panel)',
-          border: `1.5px solid ${rarityColor}66`,
-          background: 'var(--glass-bg)',
-          boxShadow: `0 -10px 40px rgba(0, 0, 0, 0.5), 0 0 20px ${rarityColor}33`,
+          border: '1.5px solid var(--paper-edge)',
+          background: '#FFFFFF',
+          boxShadow: '0 -10px 40px rgba(15, 18, 48, 0.12), 0 10px 30px rgba(0, 0, 0, 0.08)',
+          color: 'var(--ink-900)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -60,8 +55,9 @@ export function OrbSheet({ note, distanceMeters, onClose, onOpenNote }: OrbSheet
                 <span
                   style={{
                     fontSize: '10px',
-                    color: 'rgba(255, 255, 255, 0.5)',
-                    background: 'rgba(255, 255, 255, 0.08)',
+                    color: 'var(--ink-500)',
+                    background: 'var(--paper)',
+                    border: '1px solid var(--paper-edge)',
                     padding: '2px 6px',
                     borderRadius: '4px',
                   }}
@@ -69,13 +65,21 @@ export function OrbSheet({ note, distanceMeters, onClose, onOpenNote }: OrbSheet
                   demo data
                 </span>
               )}
+              {note.audio_url && (
+                <span
+                  className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                  style={{ background: '#5EE2B522', color: '#1B825D' }}
+                >
+                  <SpeakerHigh size={11} weight="bold" /> Voice Note
+                </span>
+              )}
             </div>
             <h3
               className="mt-1"
               style={{
                 fontFamily: 'var(--font-display)',
-                fontSize: 'var(--font-size-base)',
-                color: 'white',
+                fontSize: 'var(--text-base)',
+                color: 'var(--ink-900)',
               }}
             >
               {note.title}
@@ -84,7 +88,7 @@ export function OrbSheet({ note, distanceMeters, onClose, onOpenNote }: OrbSheet
 
           <button
             onClick={onClose}
-            className="p-1 rounded-full text-white/60 hover:text-white"
+            className="p-1.5 rounded-full text-[var(--ink-500)] hover:text-[var(--ink-900)] cursor-pointer"
             aria-label="Close sheet"
           >
             <X size={20} weight="bold" />
@@ -93,28 +97,24 @@ export function OrbSheet({ note, distanceMeters, onClose, onOpenNote }: OrbSheet
 
         {/* Lock Status / Distance Guidance */}
         <div
-          className="p-3 rounded-xl flex items-center gap-3"
+          className="p-3.5 rounded-xl flex items-center gap-3"
           style={{
-            background: isWithinReach
-              ? 'rgba(94, 226, 181, 0.12)'
-              : 'rgba(255, 255, 255, 0.06)',
-            border: `1px solid ${
-              isWithinReach ? 'var(--color-mint)' : 'rgba(255, 255, 255, 0.1)'
-            }`,
+            background: isWithinReach ? 'rgba(94, 226, 181, 0.12)' : 'var(--paper)',
+            border: `1.5px solid ${isWithinReach ? 'var(--mint)' : 'var(--paper-edge)'}`,
           }}
         >
           {isWithinReach ? (
-            <Sparkle size={24} weight="fill" color="var(--color-mint)" />
+            <Sparkle size={24} weight="fill" color="var(--mint)" />
           ) : (
-            <LockKey size={24} weight="bold" color="var(--color-warn)" />
+            <LockKey size={24} weight="bold" color="var(--warn)" />
           )}
 
           <div className="flex-1">
             <p
               style={{
                 fontFamily: 'var(--font-display)',
-                fontSize: 'var(--font-size-xs)',
-                color: isWithinReach ? 'var(--color-mint)' : 'white',
+                fontSize: 'var(--text-xs)',
+                color: isWithinReach ? '#167D59' : 'var(--ink-900)',
               }}
             >
               {isWithinReach
@@ -124,47 +124,51 @@ export function OrbSheet({ note, distanceMeters, onClose, onOpenNote }: OrbSheet
             <p
               style={{
                 fontFamily: 'var(--font-body)',
-                fontSize: 'var(--font-size-xs)',
-                color: 'rgba(255, 255, 255, 0.7)',
+                fontSize: '11px',
+                color: 'var(--ink-500)',
               }}
             >
               {isWithinReach
                 ? 'Standing within 60 meters unlocks verified traveller advice.'
-                : 'Walk closer to this location to break the seal and read.'}
+                : 'Walk closer to this physical location to break the seal and read.'}
             </p>
           </div>
         </div>
 
         {/* Social Proof Stats */}
         <div className="grid grid-cols-2 gap-2 text-center">
-          <div className="glass p-2.5 rounded-lg">
+          <div
+            className="p-2.5 rounded-xl"
+            style={{ background: '#FAF8F4', border: '1px solid #EADECA' }}
+          >
             <span
-              className="block font-display text-white"
-              style={{ fontSize: 'var(--font-size-base)' }}
+              className="block font-display"
+              style={{ fontSize: 'var(--text-base)', color: 'var(--ink-900)' }}
             >
               {note.unlock_count}
             </span>
             <span
-              className="text-white/50"
-              style={{ fontSize: '11px', fontFamily: 'var(--font-body)' }}
+              style={{ fontSize: '11px', fontFamily: 'var(--font-body)', color: 'var(--ink-500)' }}
             >
               Travellers visited
             </span>
           </div>
 
-          <div className="glass p-2.5 rounded-lg">
+          <div
+            className="p-2.5 rounded-xl"
+            style={{ background: '#FAF8F4', border: '1px solid #EADECA' }}
+          >
             <span
               className="block font-display"
               style={{
-                fontSize: 'var(--font-size-base)',
-                color: worthPercent && worthPercent > 80 ? 'var(--color-mint)' : 'white',
+                fontSize: 'var(--text-base)',
+                color: worthPercent && worthPercent > 80 ? '#1B825D' : 'var(--ink-900)',
               }}
             >
               {worthPercent !== null ? `${worthPercent}%` : 'New'}
             </span>
             <span
-              className="text-white/50"
-              style={{ fontSize: '11px', fontFamily: 'var(--font-body)' }}
+              style={{ fontSize: '11px', fontFamily: 'var(--font-body)', color: 'var(--ink-500)' }}
             >
               Worth the trip
             </span>
@@ -178,7 +182,7 @@ export function OrbSheet({ note, distanceMeters, onClose, onOpenNote }: OrbSheet
               onClick={() => onOpenNote(note)}
               className="slant-btn slant-btn--primary w-full py-3.5 flex items-center justify-center gap-2 cursor-pointer shadow-lg animate-pulse"
               style={{
-                fontSize: 'var(--font-size-base)',
+                fontSize: 'var(--text-base)',
                 minHeight: 48,
               }}
             >
@@ -190,12 +194,13 @@ export function OrbSheet({ note, distanceMeters, onClose, onOpenNote }: OrbSheet
               disabled
               className="w-full py-3 rounded-lg flex items-center justify-center gap-2"
               style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                color: 'rgba(255, 255, 255, 0.4)',
+                background: '#F0EBE1',
+                color: 'var(--ink-300)',
                 fontFamily: 'var(--font-display)',
-                fontSize: 'var(--font-size-xs)',
+                fontSize: 'var(--text-xs)',
                 cursor: 'not-allowed',
                 minHeight: 48,
+                border: '1px solid #EADECA',
               }}
             >
               <Footprints size={18} />
@@ -208,13 +213,13 @@ export function OrbSheet({ note, distanceMeters, onClose, onOpenNote }: OrbSheet
               style={{
                 fontFamily: 'var(--font-body)',
                 fontSize: '11px',
-                color: 'rgba(255, 255, 255, 0.4)',
+                color: 'var(--ink-400)',
               }}
             >
               Posted by @{note.author_handle}
             </span>
             <button
-              className="text-white/40 hover:text-white/70 flex items-center gap-1 text-xs"
+              className="text-[var(--ink-400)] hover:text-red-600 flex items-center gap-1 text-xs"
               style={{ background: 'none', border: 'none', cursor: 'pointer' }}
               onClick={() => alert('Report submitted for review.')}
             >

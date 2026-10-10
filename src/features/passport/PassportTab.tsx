@@ -1,14 +1,15 @@
 /* ============================================================
- * THEY WERE HERE — Passport Tab (P0)
+ * THEY WERE HERE — Passport Tab (Clean Light Theme & Voice)
  * Photomontage travel scrapbook of unlocked notes.
  * Die-cut postcard stickers, arrival postmarks, tone seals,
- * and verified traveller advice cached offline.
+ * voice note player, and verified traveller advice cached offline.
  * ============================================================ */
 
 import React, { useState } from 'react';
-import { BookOpen, X, Stamp, CheckCircle } from '@phosphor-icons/react';
+import { BookOpen, X, Stamp, CheckCircle, SpeakerHigh } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import { RarityTag } from '@/ui/components/RarityTag';
+import { VoiceNotePlayer } from '@/ui/components/VoiceNotePlayer';
 import type { NoteRarity, PassportNote } from '@/contracts/types';
 
 export const PassportTab: React.FC = () => {
@@ -25,12 +26,8 @@ export const PassportTab: React.FC = () => {
     <div
       className="passport-screen overflow-y-auto h-full flex flex-col"
       style={{
-        background: `linear-gradient(
-          180deg,
-          var(--sky-a) 0%,
-          var(--sky-b) 35%,
-          var(--ink-900) 100%
-        )`,
+        background: '#FAF7F0',
+        color: 'var(--ink-900)',
       }}
     >
       <div className="max-w-md mx-auto w-full px-5 pt-6 pb-28 flex flex-col gap-4">
@@ -38,22 +35,27 @@ export const PassportTab: React.FC = () => {
         <header className="passport-header safe-top flex items-center justify-between">
           <div>
             <div className="flex items-center gap-1.5">
-              <Stamp size={20} color="var(--accent)" weight="fill" />
-              <h1 className="passport-title font-display text-white text-xl">
+              <Stamp size={22} color="var(--hanko)" weight="fill" />
+              <h1 className="passport-title font-display text-xl" style={{ color: 'var(--ink-900)' }}>
                 Travel Passport
               </h1>
             </div>
-            <p className="passport-count text-xs text-white/60 mt-0.5 font-body">
+            <p className="passport-count text-xs mt-0.5 font-body" style={{ color: 'var(--ink-500)' }}>
               {passportNotes.length} verified traveller advice collected
             </p>
           </div>
 
           <div
-            className="hud-chip flex items-center gap-1 text-[11px] px-2.5 py-1 text-white/70"
-            style={{ borderColor: 'rgba(255, 255, 255, 0.15)' }}
+            className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full"
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid #EADECA',
+              color: 'var(--ink-700)',
+              boxShadow: '0 2px 6px rgba(15, 18, 48, 0.04)',
+            }}
           >
-            <CheckCircle size={12} color="var(--mint)" weight="fill" />
-            <span>Offline Ready</span>
+            <CheckCircle size={13} color="var(--mint)" weight="fill" />
+            <span className="font-medium">Offline Ready</span>
           </div>
         </header>
 
@@ -70,14 +72,12 @@ export const PassportTab: React.FC = () => {
               <button
                 key={r.id}
                 onClick={() => setFilterRarity(r.id as NoteRarity | 'all')}
-                className="px-3.5 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-all shrink-0"
+                className="px-3.5 py-1.5 rounded-full text-xs font-bold cursor-pointer transition-all shrink-0"
                 style={{
-                  background: isSel ? 'var(--accent)' : 'rgba(255, 255, 255, 0.08)',
-                  color: isSel ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)',
-                  border: isSel
-                    ? '1.5px solid rgba(255, 255, 255, 0.4)'
-                    : '1px solid rgba(255, 255, 255, 0.12)',
-                  boxShadow: isSel ? '0 2px 8px rgba(210,63,90,0.3)' : 'none',
+                  background: isSel ? 'var(--hanko)' : '#FFFFFF',
+                  color: isSel ? '#FFFFFF' : 'var(--ink-700)',
+                  border: isSel ? '1.5px solid var(--hanko)' : '1px solid #EADECA',
+                  boxShadow: isSel ? '0 2px 8px rgba(232, 38, 76, 0.25)' : '0 1px 3px rgba(0,0,0,0.03)',
                 }}
               >
                 {r.label}
@@ -90,10 +90,13 @@ export const PassportTab: React.FC = () => {
         <div className="passport-grid">
           {filteredNotes.length === 0 ? (
             <div className="passport-empty col-span-2 text-center py-16 px-6 flex flex-col items-center gap-3">
-              <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
-                <BookOpen size={36} weight="light" color="var(--reach)" />
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center"
+                style={{ background: 'var(--paper)', border: '1.5px solid var(--paper-edge)' }}
+              >
+                <BookOpen size={32} weight="light" color="var(--hanko)" />
               </div>
-              <p className="text-sm text-white/70 max-w-xs font-body">
+              <p className="text-sm max-w-xs font-body" style={{ color: 'var(--ink-500)' }}>
                 No notes collected yet. Walk toward glowing orbs on the radar map to unlock them.
               </p>
             </div>
@@ -104,35 +107,45 @@ export const PassportTab: React.FC = () => {
                 <div
                   key={note.id}
                   data-rarity={note.rarity}
-                  className="passport-sticker relative overflow-hidden transition-transform active:scale-95 cursor-pointer"
+                  className="passport-sticker relative overflow-hidden transition-transform active:scale-95 cursor-pointer flex flex-col justify-between"
                   style={{
-                    '--tilt': `${tilt}deg`,
                     background: 'var(--paper)',
                     color: 'var(--ink-900)',
                     padding: '14px',
                     borderRadius: '16px',
-                    border: '3px solid #FFFFFF',
-                    boxShadow: '0 6px 20px rgba(0, 0, 0, 0.35)',
+                    border: '2px solid var(--line)',
+                    outline: '3px solid #FFFFFF',
+                    boxShadow: '3px 3px 0 var(--line)',
                     transform: `rotate(${tilt}deg)`,
                   } as React.CSSProperties}
                   onClick={() => setSelectedNote(note)}
                 >
-                  {/* Subtle Stamp Watermark in Card Corner */}
-                  <div className="flex justify-between items-center mb-2">
-                    <RarityTag rarity={note.rarity} size="sm" />
-                    <span
-                      className="text-[10px] font-mono font-bold text-black/40"
-                    >
-                      #{note.stamp}
-                    </span>
-                  </div>
+                  <div>
+                    {/* Header: Rarity & Audio Indicator */}
+                    <div className="flex justify-between items-center mb-2">
+                      <RarityTag rarity={note.rarity} size="sm" />
+                      <div className="flex items-center gap-1.5">
+                        {note.audio_url && (
+                          <span
+                            className="p-1 rounded-full bg-[#5EE2B533] text-[#167D59]"
+                            title="Voice Note"
+                          >
+                            <SpeakerHigh size={12} weight="bold" />
+                          </span>
+                        )}
+                        <span className="text-[10px] font-mono font-bold text-black/40">
+                          #{note.stamp}
+                        </span>
+                      </div>
+                    </div>
 
-                  <p
-                    className="line-clamp-4 text-xs font-bold leading-relaxed text-[#14143A] mb-3"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    {note.body}
-                  </p>
+                    <p
+                      className="line-clamp-4 text-xs font-bold leading-relaxed text-[#14143A] mb-3"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {note.body}
+                    </p>
+                  </div>
 
                   <div className="flex justify-between items-center pt-2 border-t border-black/10 text-[10px] text-black/50 font-body">
                     <span className="capitalize">{note.tone ?? 'honest'} advice</span>
@@ -153,16 +166,17 @@ export const PassportTab: React.FC = () => {
       {/* Selected Note Modal (Full Travel Postcard Stationery) */}
       {selectedNote && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
           onClick={() => setSelectedNote(null)}
         >
           <div
-            className="w-full max-w-sm rounded-2xl p-6 flex flex-col gap-4 text-left relative shadow-2xl animate-fade-in"
+            className="w-full max-w-sm rounded-2xl p-6 flex flex-col gap-3.5 text-left relative shadow-2xl"
             style={{
-              background: '#FFF3D6',
-              color: '#14143A',
-              border: '4px solid #FFFFFF',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+              background: 'var(--paper)',
+              color: 'var(--ink-900)',
+              border: '3px solid var(--line)',
+              outline: '4px solid #FFFFFF',
+              boxShadow: '6px 6px 0 var(--line)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -184,7 +198,7 @@ export const PassportTab: React.FC = () => {
             </div>
 
             {/* Note Body */}
-            <div className="py-2">
+            <div className="py-1">
               <p
                 className="text-base font-bold leading-relaxed text-[#14143A]"
                 style={{ fontFamily: 'var(--font-body)' }}
@@ -192,6 +206,14 @@ export const PassportTab: React.FC = () => {
                 {selectedNote.body}
               </p>
             </div>
+
+            {/* Voice Note Player (if voice memo attached) */}
+            {selectedNote.audio_url && (
+              <VoiceNotePlayer
+                audioUrl={selectedNote.audio_url}
+                durationSeconds={selectedNote.audio_duration || 6}
+              />
+            )}
 
             {/* Postcard Metadata Footer */}
             <div className="pt-3 border-t border-black/10 flex flex-col gap-1.5 text-xs text-black/60 font-body">
