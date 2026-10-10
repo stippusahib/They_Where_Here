@@ -1,7 +1,7 @@
 /* ============================================================
- * THEY WERE HERE — Map Tab (P0 Main Screen)
+ * THEY WERE HERE — Map Tab (P0 Main Screen + AR Navigator)
  * Interactive location-locked note map, glowing orbs, radar HUD,
- * Layover reach filter, Overnight Wall counter, and Stage Mode.
+ * AR Camera Mode toggle, Layover reach filter, and Stage Mode.
  * ============================================================ */
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
@@ -15,6 +15,7 @@ import {
   Clock,
   NavigationArrow,
   Crosshair,
+  Camera,
 } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import {
@@ -34,6 +35,7 @@ import { OrbSheet } from './OrbSheet';
 import { LayoverSheet } from '@/features/layover/LayoverSheet';
 import { RevealModal } from '@/features/reveal/RevealModal';
 import { CreateNoteModal } from '@/features/notes/CreateNoteModal';
+import { ARNoteView } from '@/features/ar/ARNoteView';
 import type { ExtendedNote } from '@/lib/seedNotes';
 
 export const MapTab: React.FC = () => {
@@ -52,6 +54,7 @@ export const MapTab: React.FC = () => {
 
   const [isListView, setIsListView] = useState(false);
   const [isLayoverSheetOpen, setIsLayoverSheetOpen] = useState(false);
+  const [isARModeOpen, setIsARModeOpen] = useState(false);
 
   const mapInstanceRef = useRef<MapLibreMap | null>(null);
   const arrivedBarWrapRef = useRef<HTMLDivElement>(null);
@@ -157,7 +160,7 @@ export const MapTab: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full h-full overflow-hidden select-none bg-[var(--ink-900)]">
+    <div className="relative w-full h-full overflow-hidden select-none" style={{ background: '#FFF6E5' }}>
       {/* ── MAP OR LIST LAYER ────────────────────────────────────────── */}
       {!isListView ? (
         <div className="map-layer">
@@ -176,13 +179,16 @@ export const MapTab: React.FC = () => {
         </div>
       ) : (
         /* ── LIST VIEW (ACCESSIBILITY & DEMO FALLBACK) ── */
-        <div className="absolute inset-0 z-10 p-4 pt-24 pb-28 overflow-y-auto bg-[var(--ink-900)]">
+        <div
+          className="absolute inset-0 z-10 p-4 pt-24 pb-28 overflow-y-auto"
+          style={{ background: '#FAF7F0', color: 'var(--ink-900)' }}
+        >
           <div className="max-w-md mx-auto flex flex-col gap-3">
             <div className="flex justify-between items-center mb-1">
-              <h2 className="font-display text-white text-base">
+              <h2 className="font-display text-base" style={{ color: 'var(--ink-900)' }}>
                 Notes Near You ({notesWithDistance.length})
               </h2>
-              <span className="text-white/50 text-xs">Sorted by distance</span>
+              <span className="text-xs" style={{ color: 'var(--ink-500)' }}>Sorted by distance</span>
             </div>
 
             {notesWithDistance.map((note) => {
@@ -191,14 +197,16 @@ export const MapTab: React.FC = () => {
                 <div
                   key={note.id}
                   onClick={() => handleOrbClick(note)}
-                  className="hud-chip p-3.5 rounded-xl flex items-center justify-between cursor-pointer transition-all hover:bg-white/10 active:scale-[0.99] w-full"
+                  className="hud-chip p-3.5 rounded-xl flex items-center justify-between cursor-pointer transition-all hover:bg-white active:scale-[0.99] w-full"
                   style={{
-                    borderColor: isHere ? 'var(--mint)' : 'var(--glass-border)',
+                    background: '#FFFFFF',
+                    border: `1.5px solid ${isHere ? 'var(--mint)' : '#EADECA'}`,
+                    boxShadow: '0 2px 8px rgba(15, 18, 48, 0.04)',
                   }}
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className="w-3 h-3 rounded-full shrink-0"
+                      className="w-3.5 h-3.5 rounded-full shrink-0"
                       style={{
                         background:
                           note.rarity === 'legendary'
@@ -206,17 +214,18 @@ export const MapTab: React.FC = () => {
                             : note.rarity === 'rare'
                             ? 'var(--rare)'
                             : 'var(--common)',
+                        border: '1.5px solid var(--line)',
                         boxShadow: `0 0 8px currentColor`,
                       }}
                     />
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-display text-white text-sm">
+                        <span className="font-display text-sm" style={{ color: 'var(--ink-900)' }}>
                           {note.title}
                         </span>
                         <RarityTag rarity={note.rarity} size="sm" />
                       </div>
-                      <span className="text-xs text-white/60">
+                      <span className="text-xs" style={{ color: 'var(--ink-500)' }}>
                         {formatDistance(note.distanceMeters)} {note.cardinalDir} • By @
                         {note.author_handle}
                       </span>
@@ -230,7 +239,8 @@ export const MapTab: React.FC = () => {
                           e.stopPropagation();
                           handleTeleportToNote(note);
                         }}
-                        className="px-2 py-1 rounded text-[10px] bg-white/10 text-white font-display hover:bg-white/20"
+                        className="px-2 py-1 rounded text-[10px] font-display hover:opacity-80"
+                        style={{ background: '#FAF7F0', border: '1px solid #EADECA', color: 'var(--ink-700)' }}
                         title="Stage Mode: Teleport within 60m"
                       >
                         Teleport
@@ -241,7 +251,7 @@ export const MapTab: React.FC = () => {
                         OPEN
                       </span>
                     ) : (
-                      <span className="text-white/40 text-xs font-display">
+                      <span className="text-xs font-display" style={{ color: 'var(--ink-400)' }}>
                         {formatDistance(note.distanceMeters)}
                       </span>
                     )}
@@ -267,26 +277,50 @@ export const MapTab: React.FC = () => {
           <WallChip count={overnightNotesCount} />
           {position?.accuracy && (
             <div
-              className="hud-chip hidden sm:flex items-center gap-1 text-[11px] text-white/60 px-2.5 py-1"
+              className="hud-chip hidden sm:flex items-center gap-1 text-[11px] px-2.5 py-1"
+              style={{
+                background: 'rgba(255, 255, 255, 0.90)',
+                border: '1px solid #EADECA',
+                color: 'var(--ink-700)',
+              }}
               title="Real-time GPS Accuracy"
             >
-              <Crosshair size={12} weight="bold" color="var(--accent)" />
+              <Crosshair size={12} weight="bold" color="var(--hanko)" />
               <span>GPS ~{Math.round(position.accuracy)}m</span>
             </div>
           )}
         </div>
 
-        {/* Right HUD Controls: Sound & List Toggle */}
+        {/* Right HUD Controls: AR Mode, Sound & List Toggle */}
         <div className="flex items-center gap-2 pointer-events-auto">
+          {/* Switch to AR Mode Button */}
+          <button
+            onClick={() => setIsARModeOpen(true)}
+            className="hud-chip flex items-center gap-1.5 px-3 py-1.5 rounded-full font-bold text-xs cursor-pointer shadow-md active:scale-95 transition-all"
+            style={{
+              background: '#FFFFFF',
+              border: '1.5px solid var(--hanko)',
+              color: 'var(--hanko)',
+            }}
+            title="Switch to AR Camera Mode (Pokémon GO & GTA Pickup Style)"
+            aria-label="Switch to AR Mode"
+          >
+            <Camera size={16} weight="fill" color="var(--hanko)" />
+            <span className="font-display">AR Mode</span>
+          </button>
+
           <button
             onClick={toggleSound}
-            className="hud-chip flex items-center justify-center text-white"
+            className="hud-chip flex items-center justify-center"
             style={{
               width: 38,
               height: 38,
               padding: 0,
               borderRadius: '50%',
               cursor: 'pointer',
+              background: '#FFFFFF',
+              border: '1px solid #EADECA',
+              color: 'var(--ink-700)',
             }}
             aria-label={soundEnabled ? 'Mute sound' : 'Unmute sound'}
           >
@@ -295,13 +329,16 @@ export const MapTab: React.FC = () => {
 
           <button
             onClick={() => setIsListView((v) => !v)}
-            className="hud-chip flex items-center justify-center text-white"
+            className="hud-chip flex items-center justify-center"
             style={{
               width: 38,
               height: 38,
               padding: 0,
               borderRadius: '50%',
               cursor: 'pointer',
+              background: '#FFFFFF',
+              border: '1px solid #EADECA',
+              color: 'var(--ink-700)',
             }}
             aria-label={isListView ? 'Switch to map view' : 'Switch to list view'}
           >
@@ -318,26 +355,28 @@ export const MapTab: React.FC = () => {
       <div className="fixed top-16 left-4 z-40 safe-top pointer-events-auto flex items-center gap-2">
         <button
           onClick={() => setIsLayoverSheetOpen(true)}
-          className="hud-chip flex items-center gap-1.5 cursor-pointer transition-transform active:scale-95"
+          className="hud-chip flex items-center gap-1.5 cursor-pointer transition-transform active:scale-95 shadow-sm"
           style={{
-            borderColor: 'color-mix(in srgb, var(--reach) 40%, transparent)',
-            color: 'var(--reach)',
+            background: '#FFFFFF',
+            border: '1.5px solid #EADECA',
+            color: 'var(--ink-700)',
             fontSize: 'var(--text-xs)',
           }}
           aria-label="Open Layover Duration Sheet"
         >
-          <Clock size={14} weight="bold" color="var(--reach)" />
-          <span>
+          <Clock size={14} weight="bold" color="var(--hanko)" />
+          <span className="font-bold">
             {layoverHours}h reach ({reachKm.toFixed(1)} km)
           </span>
         </button>
 
         {position?.accuracy && (
           <div
-            className="hud-chip flex sm:hidden items-center gap-1 text-[10px] text-white/70 px-2 py-1"
+            className="hud-chip flex sm:hidden items-center gap-1 text-[10px] px-2 py-1 shadow-sm"
+            style={{ background: '#FFFFFF', border: '1px solid #EADECA', color: 'var(--ink-500)' }}
             title="Real-time GPS Accuracy"
           >
-            <Crosshair size={11} weight="bold" color="var(--accent)" />
+            <Crosshair size={11} weight="bold" color="var(--hanko)" />
             <span>~{Math.round(position.accuracy)}m</span>
           </div>
         )}
@@ -348,19 +387,21 @@ export const MapTab: React.FC = () => {
         <div className="fixed top-16 right-4 z-40 safe-top pointer-events-auto">
           <button
             onClick={handleRecenterStreetView}
-            className="hud-chip flex items-center justify-center text-white transition-transform active:scale-95 shadow-lg"
+            className="hud-chip flex items-center justify-center transition-transform active:scale-95 shadow-md"
             style={{
               width: 38,
               height: 38,
               padding: 0,
               borderRadius: '50%',
               cursor: 'pointer',
-              borderColor: 'color-mix(in srgb, var(--accent) 30%, transparent)',
+              background: '#FFFFFF',
+              border: '1.5px solid #EADECA',
+              color: 'var(--hanko)',
             }}
             title="Recenter Street View"
             aria-label="Recenter Street View"
           >
-            <NavigationArrow size={18} weight="bold" color="var(--accent)" />
+            <NavigationArrow size={18} weight="bold" color="var(--hanko)" />
           </button>
         </div>
       )}
@@ -436,6 +477,21 @@ export const MapTab: React.FC = () => {
 
       <RevealModal />
       <CreateNoteModal />
+
+      {/* ── INTERACTIVE AR NOTE VIEW (Pokémon GO & GTA Pickups) ────── */}
+      {isARModeOpen && (
+        <ARNoteView
+          onClose={() => setIsARModeOpen(false)}
+          onOpenNote={(note) => {
+            setIsARModeOpen(false);
+            handleOpenNote(note);
+          }}
+          onDropNote={() => {
+            setIsARModeOpen(false);
+            setIsCreateNoteOpen(true);
+          }}
+        />
+      )}
     </div>
   );
 };

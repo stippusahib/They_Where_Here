@@ -10,6 +10,7 @@ export interface ExtendedNote extends MapNote {
   title: string;
   body: string;
   author_handle: string;
+  is_mine?: boolean;
 }
 
 export const SEED_NOTES: ExtendedNote[] = [
