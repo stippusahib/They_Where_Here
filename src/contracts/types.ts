@@ -44,6 +44,8 @@ export interface MapNote {
   worth_no: number;
   is_seed: boolean;
   unlocked: boolean;
+  audio_url?: string;
+  audio_duration?: number;
 }
 
 /** Result from unlock_note RPC */
@@ -54,6 +56,8 @@ export interface UnlockResult {
   tone: number;
   newly_unlocked: boolean;
   xp: number;
+  audio_url?: string;
+  audio_duration?: number;
 }
 
 /** A note in the user's passport (from my_passport RPC) */
@@ -68,6 +72,8 @@ export interface PassportNote {
   worth_yes: number;
   worth_no: number;
   is_seed: boolean;
+  audio_url?: string;
+  audio_duration?: number;
 }
 
 /** Backward compatibility alias */
