@@ -25,9 +25,6 @@ import {
   ShieldWarning,
   Footprints,
   PaperPlaneTilt,
-  Lock,
-  Copy,
-  Check,
 } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import { haversineDistance, bearing, formatDistance, toCardinal } from '@/lib/geo';
@@ -77,11 +74,6 @@ function createQuestionMarkTexture(): THREE.CanvasTexture {
   return texture;
 }
 
-const qZee = new THREE.Vector3(0, 0, 1);
-const qEuler = new THREE.Euler();
-const q0 = new THREE.Quaternion();
-const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
-
 export const ARNoteView: React.FC<ARNoteViewProps> = ({
   onClose,
   onOpenNote,
@@ -104,8 +96,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showAccuracyDialog, setShowAccuracyDialog] = useState(false);
 
-  // True 3D Device Orientation Camera Tracking refs
-  const targetCamQuatRef = useRef(new THREE.Quaternion());
+  // 3D Device Orientation & Interaction Tracking refs
   const hasOrientDataRef = useRef(false);
   const manualYawRef = useRef(0);
   const manualPitchRef = useRef(0);
@@ -170,32 +161,24 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
   // Strict interaction rule: CAN ONLY READ OR TOUCH IF WITHIN 5 MIN & WITHIN UNLOCK REACH
   const canTouchOrRead = Boolean(targetNote && !isBeyond5Min && isHere);
 
-  // ── World Anchor Telemetry & Live Fixed Coordinate State ──
-  interface AnchorTelemetry {
-    worldX: number;
-    worldY: number;
-    worldZ: number;
-    lat: number;
-    lng: number;
-    distance: number;
-    isLocked: boolean;
-    lockTimestamp: string;
-  }
-
-  const [anchorTelemetry, setAnchorTelemetry] = useState<AnchorTelemetry>({
-    worldX: 0,
-    worldY: -0.6,
-    worldZ: -2.5,
-    lat: position?.lat ?? 12.971598,
-    lng: position?.lng ?? 77.594563,
-    distance: 2.5,
-    isLocked: true,
-    lockTimestamp: 'LOCKED',
-  });
-  const [showTelemetryHUD, setShowTelemetryHUD] = useState<boolean>(true);
-  const [copiedCoords, setCopiedCoords] = useState(false);
-  const noteGroupRef = useRef<THREE.Group | null>(null);
+  // ── Live Tracking Refs ──
+  const deviceHeadingRef = useRef<number>(0);
+  const devicePitchRef = useRef<number>(90);
+  const deviceRollRef = useRef<number>(0);
+  const userPositionRef = useRef(position);
+  const targetNoteRef = useRef(targetNote);
+  const initialPlacementHeadingRef = useRef<number | null>(null);
   const tagCardRef = useRef<HTMLDivElement>(null);
+
+  // Sync position and targetNote to refs
+  useEffect(() => {
+    userPositionRef.current = position;
+  }, [position]);
+
+  useEffect(() => {
+    targetNoteRef.current = targetNote;
+    initialPlacementHeadingRef.current = null;
+  }, [targetNote?.id]);
 
   // Cycle through available targets
   const handleNextTarget = () => {
@@ -207,61 +190,6 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
-  };
-
-  // Re-lock the note anchor at current crosshair direction (2.5m in front of camera)
-  const relockAnchorAtCrosshairs = () => {
-    if (!cameraRef.current || !noteGroupRef.current) return;
-    const cam = cameraRef.current;
-    const camDir = new THREE.Vector3();
-    cam.getWorldDirection(camDir);
-
-    // Place note solidly 2.5 meters in front of wherever camera is pointing right now
-    const fixedDist = 2.5;
-    const newWorldX = camDir.x * fixedDist;
-    const newWorldY = -0.6; // Floor level
-    const newWorldZ = camDir.z * fixedDist;
-
-    noteGroupRef.current.position.set(newWorldX, newWorldY, newWorldZ);
-
-    // Compute high-accuracy geographic GPS coordinates from offset
-    const userLat = position?.lat ?? 12.971598;
-    const userLng = position?.lng ?? 77.594563;
-    const offsetNorthMeters = -newWorldZ;
-    const offsetEastMeters = newWorldX;
-    const exactLat = userLat + offsetNorthMeters / 111139;
-    const exactLng = userLng + offsetEastMeters / (111139 * Math.cos((userLat * Math.PI) / 180));
-
-    setAnchorTelemetry({
-      worldX: newWorldX,
-      worldY: newWorldY,
-      worldZ: newWorldZ,
-      lat: exactLat,
-      lng: exactLng,
-      distance: fixedDist,
-      isLocked: true,
-      lockTimestamp: new Date().toLocaleTimeString(),
-    });
-
-    hapticTap();
-    showToast(`Anchor Solid-Locked at X: ${newWorldX.toFixed(2)}m, Z: ${newWorldZ.toFixed(2)}m`);
-  };
-
-  // Copy telemetry proof directly to clipboard for mentor verification
-  const copyCoordinatesToClipboard = () => {
-    const text = `They Were Here AR Note Anchor Proof:
-3D World Anchor: X: ${anchorTelemetry.worldX.toFixed(3)}m, Y: ${anchorTelemetry.worldY.toFixed(3)}m, Z: ${anchorTelemetry.worldZ.toFixed(3)}m
-High-Accuracy GPS: Lat: ${anchorTelemetry.lat.toFixed(7)}°, Lng: ${anchorTelemetry.lng.toFixed(7)}°
-Distance: ${anchorTelemetry.distance.toFixed(2)}m
-Phone Heading: ${deviceHeading}° (${toCardinal(deviceHeading)})
-Status: IMMUTABLE SOLID ANCHOR`;
-
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(text);
-      setCopiedCoords(true);
-      setTimeout(() => setCopiedCoords(false), 2000);
-      showToast('Coordinates copied for mentor!');
-    }
   };
 
   // iOS Safari permission helper
@@ -278,12 +206,10 @@ Status: IMMUTABLE SOLID ANCHOR`;
     }
   };
 
-  // ── 3. DEVICE ORIENTATION & COMPASS (Physical Geomagnetic Lock) ──
-  // Low-pass filter state for sensor smoothing (filter the INPUT, not the OUTPUT)
+  // ── 3. DEVICE ORIENTATION & COMPASS (Live Gyroscope Tracking) ──
   const filteredAlphaRef = useRef<number | null>(null);
   const filteredBetaRef = useRef<number | null>(null);
   const filteredGammaRef = useRef<number | null>(null);
-  const SENSOR_FILTER = 0.8; // 0.0 = max smooth (sluggish), 1.0 = raw (jittery). 0.8 = best for AR.
 
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
@@ -291,62 +217,40 @@ Status: IMMUTABLE SOLID ANCHOR`;
       let beta = e.beta ?? 90;
       let gamma = e.gamma ?? 0;
 
-      let alphaW3C = alpha;
       let headingDeg = 0;
 
       const anyEvent = e as unknown as { webkitCompassHeading?: number };
       if (typeof anyEvent.webkitCompassHeading === 'number') {
-        // iOS Safari: webkitCompassHeading is a true 0-360 compass heading (clockwise from North)
+        // iOS Safari: webkitCompassHeading is true 0-360 compass heading
         headingDeg = anyEvent.webkitCompassHeading;
-        // Convert clockwise compass heading to W3C counter-clockwise alpha for Three.js
-        alphaW3C = (360 - headingDeg + 360) % 360;
-        setDeviceHeading(Math.round(headingDeg));
       } else {
-        // Android/W3C: alpha is counter-clockwise from North
-        alphaW3C = alpha;
+        // Android / W3C: alpha is counter-clockwise from North
         headingDeg = (360 - alpha + 360) % 360;
-        setDeviceHeading(Math.round(headingDeg));
       }
 
-      // ── Low-pass complementary filter on raw sensor values ──
-      // This removes micro-jitter from cheap IMU sensors WITHOUT adding camera lag.
-      if (filteredAlphaRef.current === null || filteredBetaRef.current === null || filteredGammaRef.current === null) {
-        filteredAlphaRef.current = alphaW3C;
+      // Smooth heading with complementary low-pass filter to remove IMU jitter
+      if (filteredAlphaRef.current === null) {
+        filteredAlphaRef.current = headingDeg;
         filteredBetaRef.current = beta;
         filteredGammaRef.current = gamma;
       } else {
-        // Handle alpha wrap-around (359° -> 1° should not lerp through 180°)
-        let dAlpha = alphaW3C - filteredAlphaRef.current;
-        if (dAlpha > 180) dAlpha -= 360;
-        if (dAlpha < -180) dAlpha += 360;
-        filteredAlphaRef.current = ((filteredAlphaRef.current + dAlpha * SENSOR_FILTER) + 360) % 360;
-        filteredBetaRef.current = filteredBetaRef.current + (beta - filteredBetaRef.current) * SENSOR_FILTER;
-        filteredGammaRef.current = filteredGammaRef.current + (gamma - filteredGammaRef.current) * SENSOR_FILTER;
+        let dHeading = headingDeg - filteredAlphaRef.current;
+        if (dHeading > 180) dHeading -= 360;
+        if (dHeading < -180) dHeading += 360;
+        filteredAlphaRef.current = ((filteredAlphaRef.current + dHeading * 0.75) + 360) % 360;
+        filteredBetaRef.current = (filteredBetaRef.current ?? 90) + (beta - (filteredBetaRef.current ?? 90)) * 0.75;
+        filteredGammaRef.current = (filteredGammaRef.current ?? 0) + (gamma - (filteredGammaRef.current ?? 0)) * 0.75;
       }
 
-      const fAlpha = filteredAlphaRef.current ?? alphaW3C;
+      const fHeading = filteredAlphaRef.current ?? headingDeg;
       const fBeta = filteredBetaRef.current ?? beta;
       const fGamma = filteredGammaRef.current ?? gamma;
 
-      const orient =
-        window.screen?.orientation?.angle ||
-        (window as unknown as { orientation?: number }).orientation ||
-        0;
+      deviceHeadingRef.current = fHeading;
+      devicePitchRef.current = fBeta;
+      deviceRollRef.current = fGamma;
 
-      const aRad = THREE.MathUtils.degToRad(fAlpha);
-      const bRad = THREE.MathUtils.degToRad(fBeta);
-      const gRad = THREE.MathUtils.degToRad(fGamma);
-      const oRad = THREE.MathUtils.degToRad(orient);
-
-      // Standard W3C DeviceOrientation -> Three.js camera quaternion
-      // (Same formula as Three.js DeviceOrientationControls)
-      qEuler.set(bRad, aRad, -gRad, 'YXZ');
-      const rawQuat = new THREE.Quaternion().setFromEuler(qEuler);
-      rawQuat.multiply(q1); // Rotate camera to look out the back of the device
-      rawQuat.multiply(q0.setFromAxisAngle(qZee, -oRad)); // Adjust for screen orientation
-
-      // Direct copy -- ZERO smoothing on output. This is critical for AR.
-      targetCamQuatRef.current.copy(rawQuat);
+      setDeviceHeading(Math.round(fHeading));
       hasOrientDataRef.current = true;
     };
 
@@ -586,60 +490,7 @@ Status: IMMUTABLE SOLID ANCHOR`;
     ringMesh.position.y = -2.3;
     noteGroup.add(ringMesh);
 
-    // Vertical Beacon Pillar
-    const beamColor = isMysteryLocked ? 0x9370db : isMine ? 0xffe4b5 : 0xffd6a5;
-    const beamGeom = new THREE.CylinderGeometry(0.12, 1.4, 5.5, 16, 1, true);
-    const beamMat = new THREE.MeshBasicMaterial({
-      color: beamColor,
-      transparent: true,
-      opacity: isHere ? 0.35 : 0.22,
-      side: THREE.DoubleSide,
-    });
-    const beamMesh = new THREE.Mesh(beamGeom, beamMat);
-    beamMesh.position.y = -0.5;
-    noteGroup.add(beamMesh);
-
-    // ── WORLD ANCHOR: Fixed immutable position in 3D world space ──
-    const userLat = position?.lat ?? 12.971598;
-    const userLng = position?.lng ?? 77.594563;
-    let initialX = 0;
-    let initialZ = -2.5;
-    const initialY = -0.6;
-    let exactLat = userLat;
-    let exactLng = userLng;
-
-    if (targetNote) {
-      exactLat = targetNote.lat;
-      exactLng = targetNote.lng;
-      const dist = haversineDistance(userLat, userLng, targetNote.lat, targetNote.lng);
-      const visualR = dist > 1.0 ? Math.max(1.8, Math.min(dist, 6.0)) : 2.5;
-      const radBearing = THREE.MathUtils.degToRad(targetBearing || 0);
-      initialX = visualR * Math.sin(radBearing);
-      initialZ = -visualR * Math.cos(radBearing);
-    } else {
-      const radBearing = THREE.MathUtils.degToRad(targetBearing || 0);
-      initialX = 2.5 * Math.sin(radBearing);
-      initialZ = -2.5 * Math.cos(radBearing);
-      exactLat = userLat + (-initialZ / 111139);
-      exactLng = userLng + (initialX / (111139 * Math.cos((userLat * Math.PI) / 180)));
-    }
-
-    noteGroup.position.set(initialX, initialY, initialZ);
-    noteGroup.frustumCulled = false;
     scene.add(noteGroup);
-    noteGroupRef.current = noteGroup;
-
-    setAnchorTelemetry({
-      worldX: initialX,
-      worldY: initialY,
-      worldZ: initialZ,
-      lat: exactLat,
-      lng: exactLng,
-      distance: Math.hypot(initialX, initialZ),
-      isLocked: true,
-      lockTimestamp: new Date().toLocaleTimeString(),
-    });
-
     cameraRef.current = camera;
     interactiveMeshesRef.current = [noteMesh, sealMesh, qMarkMesh, ringMesh].filter(Boolean) as THREE.Object3D[];
 
@@ -651,9 +502,8 @@ Status: IMMUTABLE SOLID ANCHOR`;
       animId = requestAnimationFrame(animate);
       const time = clock.getElapsedTime();
 
-      // Local 360 spin in place (stable hover, zero position displacement)
-      noteMesh.rotation.y = time * 0.6;
-      noteMesh.rotation.x = 0;
+      // Slow, steady origami spin in place (gentle hover, no jitter)
+      noteMesh.rotation.y = time * 0.75;
       noteMesh.position.y = 0;
 
       if (sealMesh) {
@@ -662,28 +512,81 @@ Status: IMMUTABLE SOLID ANCHOR`;
       }
       if (qMarkMesh) {
         qMarkMesh.position.y = 0;
-        qMarkMesh.rotation.y = time * 0.6;
+        qMarkMesh.rotation.y = time * 0.75;
       }
 
-      // Ground shockwave rings (slow expansion on floor)
+      // Ground shockwave rings (slow floor expansion)
       const ringScale = 1.0 + (time % 2.5) * 0.4;
       ringMesh.scale.set(ringScale, ringScale, ringScale);
       ringMat.opacity = Math.max(0, 0.6 - (time % 2.5) * 0.24);
 
-      // Direct 1:1 camera quaternion copy with zero render lag
-      camera.quaternion.copy(targetCamQuatRef.current);
+      // Camera tilt pitch & roll from device sensors
+      // In portrait: vertical is beta ~ 90 deg -> pitch = 0
+      // Tilting down towards floor -> beta > 90 -> camera pitches down
+      // Tilting up towards sky -> beta < 90 -> camera pitches up
+      const curPitch = devicePitchRef.current;
+      const curRoll = deviceRollRef.current;
+      const pitchRad = THREE.MathUtils.degToRad(curPitch - 90);
+      const rollRad = THREE.MathUtils.degToRad(curRoll);
+      camera.rotation.set(pitchRad, 0, -rollRad, 'ZXY');
 
-      // noteGroup.position is NEVER touched here. It stays at (worldX, -0.6, worldZ) forever.
-      // The camera rotates with the phone. The note remains physically locked in the room.
+      // ── Dynamic Polar Geo-Anchoring (Real-World Space Alignment) ──
+      // Real Geo-AR positioning: The note's position in camera view is strictly governed
+      // by the relative azimuth angle (bearing - heading) and physical GPS distance.
+      const target = targetNoteRef.current;
+      const pos = userPositionRef.current;
+      const heading = deviceHeadingRef.current;
 
-      // Reticle Lock-On Detection (checks if camera is aiming directly at the note)
-      const camDir = new THREE.Vector3();
-      camera.getWorldDirection(camDir);
-      const noteNorm = noteGroup.position.clone().normalize();
-      const dot = camDir.dot(noteNorm);
-      const angleDeg = Math.acos(THREE.MathUtils.clamp(dot, -1, 1)) * (180 / Math.PI);
+      let isInFront = false;
+      let angleDeg = 180;
 
-      const isLockedOn = angleDeg < 15;
+      if (target && pos) {
+        noteGroup.visible = true;
+        const dist = haversineDistance(pos.lat, pos.lng, target.lat, target.lng);
+        let bear = bearing(pos.lat, pos.lng, target.lat, target.lng);
+
+        if (dist < 1.0) {
+          if (initialPlacementHeadingRef.current === null) {
+            initialPlacementHeadingRef.current = heading;
+          }
+          bear = initialPlacementHeadingRef.current;
+        } else {
+          initialPlacementHeadingRef.current = null;
+        }
+
+        // Relative horizontal angular offset (-180 to +180)
+        const deltaAzimuth = ((bear - heading + 540) % 360) - 180;
+        angleDeg = Math.abs(deltaAzimuth);
+
+        // Smooth perspective distance scaling
+        let visualDist = 2.2;
+        if (dist > 2.0 && dist <= 40.0) {
+          visualDist = 2.2 + (dist - 2.0) * 0.15;
+        } else if (dist > 40.0) {
+          visualDist = Math.min(12.0, 7.9 + (dist - 40.0) * 0.02);
+        }
+
+        const rad = THREE.MathUtils.degToRad(deltaAzimuth);
+
+        // Position in camera view:
+        // When you pan right -> note shifts LEFT on screen
+        // When you pan left -> note shifts RIGHT on screen
+        // When you face away -> note is BEHIND camera (posZ > 0)
+        const posX = visualDist * Math.sin(rad);
+        const posZ = -visualDist * Math.cos(rad);
+        const posY = -0.7; // Sitting below eye level on ground
+
+        noteGroup.position.set(posX, posY, posZ);
+
+        isInFront = posZ < 0;
+      } else {
+        noteGroup.visible = false;
+        isInFront = false;
+        angleDeg = 180;
+      }
+
+      // Reticle Lock-On Detection (center crosshair directly aimed at note)
+      const isLockedOn = Boolean(target && angleDeg < 14 && isInFront);
       isReticleLockedOnRef.current = isLockedOn;
       if (isLockedOn !== wasReticleLockedRef.current) {
         if (isLockedOn) hapticTap();
@@ -691,25 +594,27 @@ Status: IMMUTABLE SOLID ANCHOR`;
         setIsReticleLockedOn(isLockedOn);
       }
 
-      // Project 3D world position to 2D screen coordinate for callout HUD card
-      const tempV = new THREE.Vector3();
-      tempV.setFromMatrixPosition(noteMesh.matrixWorld);
-      tempV.y += 1.3;
-      tempV.project(camera);
+      // Project 3D note position to screen for 2D callout HUD card
+      if (target && isInFront) {
+        const tempV = new THREE.Vector3();
+        tempV.setFromMatrixPosition(noteMesh.matrixWorld);
+        tempV.y += 1.3;
+        tempV.project(camera);
 
-      const isInFront = dot > 0.15;
-      const isOnScreen = isInFront && Math.abs(tempV.x) <= 1.05 && Math.abs(tempV.y) <= 1.05;
-      const screenX = ((tempV.x + 1) * width) / 2;
-      const screenY = ((-tempV.y + 1) * height) / 2;
+        const isOnScreen = Math.abs(tempV.x) <= 1.05 && Math.abs(tempV.y) <= 1.05;
+        const screenX = ((tempV.x + 1) * width) / 2;
+        const screenY = ((-tempV.y + 1) * height) / 2;
 
-      // Update floating tag screen position directly in DOM for smooth 60fps (no React lag)
-      if (tagCardRef.current) {
-        if (isOnScreen) {
-          tagCardRef.current.style.display = 'block';
-          tagCardRef.current.style.transform = `translate3d(${screenX}px, ${screenY}px, 0) translate(-50%, -100%)`;
-        } else {
-          tagCardRef.current.style.display = 'none';
+        if (tagCardRef.current) {
+          if (isOnScreen) {
+            tagCardRef.current.style.display = 'block';
+            tagCardRef.current.style.transform = `translate3d(${screenX}px, ${screenY}px, 0) translate(-50%, -100%)`;
+          } else {
+            tagCardRef.current.style.display = 'none';
+          }
         }
+      } else if (tagCardRef.current) {
+        tagCardRef.current.style.display = 'none';
       }
 
       renderer.render(scene, camera);
@@ -736,16 +641,16 @@ Status: IMMUTABLE SOLID ANCHOR`;
       dragStartX = e.clientX;
       dragStartY = e.clientY;
 
-      // Only manually pan if gyroscope orientation data hasn't arrived
       if (!hasOrientDataRef.current) {
-        manualYawRef.current -= dx * 0.004;
+        manualYawRef.current = (manualYawRef.current - dx * 0.25 + 360) % 360;
         manualPitchRef.current = THREE.MathUtils.clamp(
-          manualPitchRef.current - dy * 0.004,
-          -Math.PI / 2.2,
-          Math.PI / 2.2
+          manualPitchRef.current - dy * 0.25,
+          45,
+          135
         );
-        const euler = new THREE.Euler(manualPitchRef.current, manualYawRef.current, 0, 'YXZ');
-        targetCamQuatRef.current.setFromEuler(euler);
+        deviceHeadingRef.current = manualYawRef.current;
+        devicePitchRef.current = manualPitchRef.current;
+        setDeviceHeading(Math.round(manualYawRef.current));
       }
     };
 
@@ -775,7 +680,6 @@ Status: IMMUTABLE SOLID ANCHOR`;
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('resize', handleResize);
       cameraRef.current = null;
-      noteGroupRef.current = null;
       interactiveMeshesRef.current = [];
       if (renderer.domElement && container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
@@ -1217,107 +1121,6 @@ Status: IMMUTABLE SOLID ANCHOR`;
             )}
           </div>
         )}
-
-        {/* ── HIGH-PRECISION 3D WORLD ANCHOR TELEMETRY HUD (MENTOR PROOF PROTOCOL) ── */}
-        <div className="self-center w-full max-w-sm pointer-events-auto">
-          <div
-            className="rounded-2xl p-2.5 sm:p-3 shadow-2xl backdrop-blur-md flex flex-col gap-2 border transition-all"
-            style={{
-              background: 'rgba(15, 18, 48, 0.94)',
-              borderColor: 'var(--mint)',
-              color: '#FFFFFF',
-            }}
-          >
-            {/* Header: Title + Controls */}
-            <div className="flex items-center justify-between border-b border-white/15 pb-1.5">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-[var(--mint)] animate-pulse" />
-                <span className="font-mono text-[10px] font-black uppercase tracking-wider text-[var(--mint)]">
-                  WORLD ANCHOR TELEMETRY
-                </span>
-                <span className="bg-[var(--mint)]/20 text-[var(--mint)] font-mono text-[8px] font-black px-1.5 py-0.5 rounded uppercase flex items-center gap-1">
-                  <Lock size={9} weight="bold" />
-                  <span>SOLID LOCK</span>
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={copyCoordinatesToClipboard}
-                  className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-white/10 hover:bg-white/20 active:scale-95 text-white flex items-center gap-1 cursor-pointer transition-transform"
-                  title="Copy high-precision coordinates for mentor verification"
-                >
-                  {copiedCoords ? <Check size={10} color="var(--mint)" weight="bold" /> : <Copy size={10} weight="bold" />}
-                  <span>{copiedCoords ? 'COPIED' : 'COPY'}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowTelemetryHUD((prev) => !prev)}
-                  className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold text-white/60 hover:text-white cursor-pointer active:scale-95"
-                >
-                  {showTelemetryHUD ? 'COLLAPSE' : 'EXPAND'}
-                </button>
-              </div>
-            </div>
-
-            {showTelemetryHUD && (
-              <>
-                {/* 3D World Space (Stationary / Immutable Anchor) vs High-Precision GPS */}
-                <div className="grid grid-cols-2 gap-2 text-left bg-black/40 p-2 rounded-xl font-mono text-[10px] border border-white/10">
-                  <div>
-                    <span className="text-white/50 block text-[8px] uppercase tracking-wide">
-                      Stationary 3D Metric
-                    </span>
-                    <span className="font-bold text-[var(--mint)] block">
-                      X: {anchorTelemetry.worldX >= 0 ? '+' : ''}{anchorTelemetry.worldX.toFixed(2)}m
-                    </span>
-                    <span className="font-bold text-[var(--mint)] block">
-                      Z: {anchorTelemetry.worldZ >= 0 ? '+' : ''}{anchorTelemetry.worldZ.toFixed(2)}m
-                    </span>
-                    <span className="text-white/60 block text-[9px]">
-                      Distance: {anchorTelemetry.distance.toFixed(2)}m
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-white/50 block text-[8px] uppercase tracking-wide">
-                      Exact GPS (WGS84)
-                    </span>
-                    <span className="font-bold text-white block truncate">
-                      {anchorTelemetry.lat.toFixed(6)}°N
-                    </span>
-                    <span className="font-bold text-white block truncate">
-                      {anchorTelemetry.lng.toFixed(6)}°W
-                    </span>
-                    <span className="text-[var(--mint)] block text-[9px] font-bold">
-                      ● ZERO DRIFT
-                    </span>
-                  </div>
-                </div>
-
-                {/* Mobile Sensor Comparison: Phone Heading actively updates while 3D Anchor stays stationary */}
-                <div className="flex items-center justify-between text-[9px] font-mono text-white/80 px-0.5">
-                  <div className="flex items-center gap-1">
-                    <Compass size={11} weight="bold" color="var(--mint)" />
-                    <span>
-                      Live Gyro: <strong className="text-white">{deviceHeading}° {toCardinal(deviceHeading)}</strong>
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={relockAnchorAtCrosshairs}
-                    className="flex items-center gap-1 text-[var(--legendary)] font-bold hover:underline cursor-pointer active:scale-95 transition-transform"
-                    title="Anchor note 2.5m directly in front of crosshairs"
-                  >
-                    <Crosshair size={11} weight="bold" />
-                    <span>Relock At Crosshairs</span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* ── 6. CENTER RETICLE & PROXIMITY TOUCH INSTRUCTION ─────────── */}
@@ -1391,7 +1194,9 @@ Status: IMMUTABLE SOLID ANCHOR`;
                 : 'var(--ink-900)',
             }}
           >
-            {isReticleLockedOn && canTouchOrRead
+            {!targetNote
+              ? 'NO NOTES NEARBY • DROP A NOTE BELOW'
+              : isReticleLockedOn && canTouchOrRead
               ? isMine
                 ? 'TARGET LOCKED • TAP TO INSPECT'
                 : 'TARGET LOCKED • TAP TO TOUCH'
@@ -1459,7 +1264,14 @@ Status: IMMUTABLE SOLID ANCHOR`;
         {/* Tactical Bottom Action Deck: Contextual Touch + 2D Map + Leave Note */}
         <div className="flex flex-col gap-2 w-full">
           {/* Contextual Primary Action: Touch / Dispel / Walk Alert */}
-          {targetNote && canTouchOrRead ? (
+          {!targetNote ? (
+            <div className="w-full h-11 rounded-xl bg-white/95 text-[var(--ink-900)] border border-[#14143A]/15 shadow-md flex items-center justify-center gap-1.5 text-xs font-bold px-3">
+              <Compass size={15} weight="bold" color="var(--hanko)" />
+              <span className="truncate">
+                No notes in area — tap 'Leave a note' to drop one!
+              </span>
+            </div>
+          ) : canTouchOrRead ? (
             <button
               type="button"
               onClick={() => {
@@ -1493,7 +1305,7 @@ Status: IMMUTABLE SOLID ANCHOR`;
                 </>
               )}
             </button>
-          ) : targetNote && !isBeyond5Min ? (
+          ) : !isBeyond5Min ? (
             <div className="w-full h-10 rounded-xl bg-white/95 text-[var(--ink-900)] border border-[var(--warn)] shadow-md flex items-center justify-center gap-1.5 text-xs font-bold px-3">
               <Footprints size={15} weight="bold" color="var(--warn)" />
               <span className="truncate">
