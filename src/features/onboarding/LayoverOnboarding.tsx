@@ -5,7 +5,7 @@
  * tactile duration slider, and postcard exploration reach card.
  * ============================================================ */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ArrowRight,
   Compass,
@@ -13,6 +13,9 @@ import {
   AirplaneLanding,
   IdentificationCard,
   WarningCircle,
+  Ticket,
+  AirplaneTilt,
+  MagnifyingGlass,
 } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import { layoverReachKm } from '@/lib/geo';
@@ -21,6 +24,11 @@ import {
   POPULAR_PASSPORTS,
   POPULAR_LAYOVER_HUBS,
 } from '@/lib/visaCheck';
+import {
+  lookupFlightOrPnr,
+  POPULAR_FLIGHT_PRESETS,
+  type FlightLayoverInfo,
+} from '@/lib/flightApi';
 import { PaperPlaneCanvas } from '@/3d/PaperPlaneCanvas';
 import { AppLogo } from '@/ui/components/AppLogo';
 import { CountrySelectInput } from '@/features/layover/CountrySelectInput';
@@ -50,6 +58,23 @@ export const LayoverOnboarding: React.FC<LayoverOnboardingProps> = ({ onComplete
   const setPassportCountry = useAppStore((s) => s.setPassportCountry);
   const layoverCountry = useAppStore((s) => s.layoverCountry);
   const setLayoverCountry = useAppStore((s) => s.setLayoverCountry);
+
+  const [flightQuery, setFlightQuery] = useState('');
+  const [activeFlight, setActiveFlight] = useState<FlightLayoverInfo | null>(null);
+
+  const handleApplyFlight = (flight: FlightLayoverInfo) => {
+    setActiveFlight(flight);
+    setFlightQuery(flight.flightNumber);
+    setLayoverHours(flight.layoverHours);
+    setLayoverCountry(flight.hubCountry);
+  };
+
+  const handleFlightSearch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!flightQuery.trim()) return;
+    const resolved = lookupFlightOrPnr(flightQuery);
+    handleApplyFlight(resolved);
+  };
 
   const assessment = useMemo(() => {
     return checkLayoverExit(passportCountry, layoverCountry);
@@ -148,12 +173,92 @@ export const LayoverOnboarding: React.FC<LayoverOnboardingProps> = ({ onComplete
           </h1>
 
           <p className="font-body text-[var(--ink-700)] text-xs mt-2 max-w-[280px] leading-relaxed">
-            Enter your passport and transit hub. We check live exit and transit visa rules before planning your reach.
+            Enter your flight ticket number or select countries below. We automatically calculate your layover transit duration, visa rules, and safe AR reach.
           </p>
         </div>
 
-        {/* 2. Step 1: Country Selection Inputs */}
+        {/* ── 2. FLIGHT TICKET / PNR AUTO-IMPORT (MENTOR UPGRADE) ── */}
+        <section
+          className="bg-white rounded-2xl p-4 flex flex-col gap-3 shadow-[0_4px_20px_rgba(15,18,48,0.06)]"
+          style={{
+            border: '1.5px dashed var(--line)',
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Ticket size={18} weight="fill" color="var(--hanko)" />
+              <span className="font-display font-bold text-xs text-[var(--ink-900)]">
+                Flight Ticket / PNR Auto-Import
+              </span>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[var(--hanko)]/10 text-[var(--hanko)] font-bold">
+              Auto-Detect
+            </span>
+          </div>
+
+          <form onSubmit={handleFlightSearch} className="flex gap-2">
+            <input
+              type="text"
+              value={flightQuery}
+              onChange={(e) => setFlightQuery(e.target.value)}
+              placeholder="Flight No. (e.g. EK564, AI998) or PNR"
+              className="flex-1 px-3 py-2 text-xs font-mono rounded-xl bg-[#FAF7F0] border border-[var(--line)] text-[var(--ink-900)] placeholder:text-[var(--ink-400)] focus:outline-none focus:border-[var(--hanko)]"
+            />
+            <button
+              type="submit"
+              className="px-3.5 py-2 rounded-xl text-xs font-display font-bold bg-[var(--hanko)] text-white hover:opacity-90 active:scale-95 transition-all flex items-center gap-1 cursor-pointer shrink-0"
+            >
+              <MagnifyingGlass size={13} weight="bold" />
+              <span>Sync</span>
+            </button>
+          </form>
+
+          {/* Popular Flight Demo Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            <span className="text-[10px] font-mono text-[var(--ink-500)] shrink-0">Tap to test:</span>
+            {POPULAR_FLIGHT_PRESETS.slice(0, 4).map((preset) => (
+              <button
+                key={preset.flightNumber}
+                type="button"
+                onClick={() => handleApplyFlight(preset)}
+                className={`text-[10px] font-mono px-2.5 py-1 rounded-lg shrink-0 border transition-all cursor-pointer ${
+                  activeFlight?.flightNumber === preset.flightNumber
+                    ? 'bg-[var(--hanko)] text-white border-[var(--hanko)] font-bold shadow-xs'
+                    : 'bg-[#FAF7F0] text-[var(--ink-700)] border-[var(--line)] hover:border-[var(--hanko)]'
+                }`}
+              >
+                {preset.flightNumber} ({preset.layoverHours}h)
+              </button>
+            ))}
+          </div>
+
+          {/* Active Flight Boarding Pass Coupon */}
+          {activeFlight && (
+            <div className="p-3 rounded-xl bg-[#FAF7F0] border border-[var(--mint)]/40 flex items-center justify-between text-xs animate-fade-in">
+              <div className="flex items-center gap-2">
+                <AirplaneTilt size={18} weight="fill" color="var(--mint)" />
+                <div>
+                  <div className="font-display font-bold text-xs text-[var(--ink-900)]">
+                    {activeFlight.airline} {activeFlight.flightNumber} • {activeFlight.origin} ➔ {activeFlight.destination}
+                  </div>
+                  <div className="text-[10px] font-mono text-[var(--ink-500)]">
+                    {activeFlight.layoverHours}h Transit • Hub: {activeFlight.hubCountry} • {activeFlight.terminal}
+                  </div>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono font-bold text-[var(--mint)] px-2 py-0.5 rounded bg-[var(--mint)]/10 shrink-0">
+                Synced
+              </span>
+            </div>
+          )}
+        </section>
+
+        {/* ── 3. MANUAL PASSPORT & TRANSIT HUB SELECTION ── */}
         <section className="bg-white rounded-2xl p-4 border border-[var(--ink-900)]/10 shadow-[0_4px_20px_rgba(15,18,48,0.05)] flex flex-col gap-3.5">
+          <div className="text-[10px] font-mono text-[var(--ink-500)] font-bold uppercase tracking-wider">
+            Or configure passport &amp; hub manually:
+          </div>
+
           <CountrySelectInput
             label="Your Passport Country"
             value={passportCountry}
