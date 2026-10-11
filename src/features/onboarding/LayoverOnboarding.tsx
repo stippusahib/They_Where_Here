@@ -76,6 +76,11 @@ export const LayoverOnboarding: React.FC<LayoverOnboardingProps> = ({ onComplete
     handleApplyFlight(resolved);
   };
 
+  const handleCancelFlight = () => {
+    setActiveFlight(null);
+    setFlightQuery('');
+  };
+
   const assessment = useMemo(() => {
     return checkLayoverExit(passportCountry, layoverCountry);
   }, [passportCountry, layoverCountry]);
@@ -234,29 +239,60 @@ export const LayoverOnboarding: React.FC<LayoverOnboardingProps> = ({ onComplete
 
           {/* Active Flight Boarding Pass Coupon */}
           {activeFlight && (
-            <div className="p-3 rounded-xl bg-[#FAF7F0] border border-[var(--mint)]/40 flex items-center justify-between text-xs animate-fade-in">
-              <div className="flex items-center gap-2">
-                <AirplaneTilt size={18} weight="fill" color="var(--mint)" />
-                <div>
-                  <div className="font-display font-bold text-xs text-[var(--ink-900)]">
+            <div className="p-3 rounded-xl bg-white border-2 border-[var(--mint)] flex items-center justify-between text-xs animate-fade-in shadow-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <AirplaneTilt size={18} weight="fill" color="var(--mint)" className="shrink-0" />
+                <div className="min-w-0">
+                  <div className="font-display font-bold text-xs text-[var(--ink-900)] truncate">
                     {activeFlight.airline} {activeFlight.flightNumber} • {activeFlight.origin} ➔ {activeFlight.destination}
                   </div>
                   <div className="text-[10px] font-mono text-[var(--ink-500)]">
-                    {activeFlight.layoverHours}h Transit • Hub: {activeFlight.hubCountry} • {activeFlight.terminal}
+                    {activeFlight.layoverHours}h Transit • Hub: {activeFlight.hubCountry}
                   </div>
                 </div>
               </div>
-              <span className="text-[10px] font-mono font-bold text-[var(--mint)] px-2 py-0.5 rounded bg-[var(--mint)]/10 shrink-0">
-                Synced
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] font-mono font-bold text-[var(--mint)] px-2 py-0.5 rounded bg-[var(--mint)]/10">
+                  Active
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCancelFlight}
+                  className="text-[11px] font-mono font-bold text-[var(--hanko)] hover:underline px-1.5 py-0.5 cursor-pointer"
+                  title="Cancel ticket and switch back to manual mode"
+                >
+                  ✕ Cancel
+                </button>
+              </div>
             </div>
           )}
         </section>
 
-        {/* ── 3. MANUAL PASSPORT & TRANSIT HUB SELECTION ── */}
-        <section className="bg-white rounded-2xl p-4 border border-[var(--ink-900)]/10 shadow-[0_4px_20px_rgba(15,18,48,0.05)] flex flex-col gap-3.5">
+        {/* ── 3. MANUAL PASSPORT & TRANSIT HUB SELECTION (SHADED IF TICKET ACTIVE) ── */}
+        <section
+          className={`bg-white rounded-2xl p-4 border transition-all duration-200 relative flex flex-col gap-3.5 ${
+            activeFlight
+              ? 'opacity-35 grayscale pointer-events-none select-none border-[var(--ink-200)] shadow-none'
+              : 'border-[var(--ink-900)]/10 shadow-[0_4px_20px_rgba(15,18,48,0.05)]'
+          }`}
+        >
+          {activeFlight && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center p-3 bg-white/70 backdrop-blur-[1px] rounded-2xl pointer-events-auto">
+              <div className="bg-[var(--ink-900)] text-white px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold shadow-md flex items-center gap-1.5">
+                <span>Locked by {activeFlight.flightNumber}</span>
+                <button
+                  type="button"
+                  onClick={handleCancelFlight}
+                  className="underline text-[var(--warn)] hover:text-white cursor-pointer ml-1"
+                >
+                  Switch to Manual
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="text-[10px] font-mono text-[var(--ink-500)] font-bold uppercase tracking-wider">
-            Or configure passport &amp; hub manually:
+            {activeFlight ? 'Manual Mode (Disabled while flight ticket is synced)' : 'Or configure passport & hub manually:'}
           </div>
 
           <CountrySelectInput

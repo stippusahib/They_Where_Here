@@ -73,6 +73,11 @@ export const LayoverSheet: React.FC<LayoverSheetProps> = ({
     handleApplyFlight(resolved);
   };
 
+  const handleCancelFlight = () => {
+    setActiveFlight(null);
+    setFlightQuery('');
+  };
+
   const assessment = useMemo(() => {
     return checkLayoverExit(passportCountry, layoverCountry);
   }, [passportCountry, layoverCountry]);
@@ -189,27 +194,58 @@ export const LayoverSheet: React.FC<LayoverSheetProps> = ({
 
               {/* Active Ticket Readout Banner */}
               {activeFlight && (
-                <div className="p-2.5 rounded-xl bg-white border border-[var(--mint)]/40 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <AirplaneTilt size={16} weight="fill" color="var(--mint)" />
-                    <div>
-                      <div className="font-display text-xs text-[var(--ink-900)]">
+                <div className="p-2.5 rounded-xl bg-white border-2 border-[var(--mint)] flex items-center justify-between text-xs animate-fade-in shadow-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <AirplaneTilt size={16} weight="fill" color="var(--mint)" className="shrink-0" />
+                    <div className="min-w-0">
+                      <div className="font-display font-bold text-xs text-[var(--ink-900)] truncate">
                         {activeFlight.airline} {activeFlight.flightNumber} • {activeFlight.origin} ➔ {activeFlight.destination}
                       </div>
                       <div className="text-[10px] font-mono text-[var(--ink-500)]">
-                        {activeFlight.layoverHours}h Transit • Hub: {activeFlight.hubCountry} • {activeFlight.terminal}
+                        {activeFlight.layoverHours}h Transit • Hub: {activeFlight.hubCountry}
                       </div>
                     </div>
                   </div>
-                  <span className="text-[10px] font-mono font-bold text-[var(--mint)] px-1.5 py-0.5 rounded bg-[var(--mint)]/10">
-                    Synced
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] font-mono font-bold text-[var(--mint)] px-1.5 py-0.5 rounded bg-[var(--mint)]/10">
+                      Active
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCancelFlight}
+                      className="text-[11px] font-mono font-bold text-[var(--hanko)] hover:underline px-1 py-0.5 cursor-pointer"
+                      title="Cancel ticket and edit manually"
+                    >
+                      ✕ Cancel
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Country Selectors */}
-            <div className="flex flex-col gap-3">
+            {/* Country Selectors (Shaded if ticket active) */}
+            <div
+              className={`flex flex-col gap-3 transition-all duration-200 relative ${
+                activeFlight
+                  ? 'opacity-35 grayscale pointer-events-none select-none'
+                  : ''
+              }`}
+            >
+              {activeFlight && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center p-3 bg-white/60 backdrop-blur-[1px] rounded-2xl pointer-events-auto">
+                  <div className="bg-[var(--ink-900)] text-white px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold shadow-md flex items-center gap-1.5">
+                    <span>Locked by {activeFlight.flightNumber}</span>
+                    <button
+                      type="button"
+                      onClick={handleCancelFlight}
+                      className="underline text-[var(--warn)] hover:text-white cursor-pointer ml-1"
+                    >
+                      Switch to Manual
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <CountrySelectInput
                 label="Your Passport Country"
                 value={passportCountry}
