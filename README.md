@@ -4,6 +4,10 @@
 
 **Live App**: [they-where-here.vercel.app](https://they-where-here.vercel.app/)
 
+<p align="center">
+  <img src="docs/screenshots/cover.png" alt="They Were Here — Layover Radar" width="540" />
+</p>
+
 Built for **LAYOVER 2026** by TinkerHub at TinkerSpace Calicut.
 
 ---
