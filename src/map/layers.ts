@@ -15,13 +15,13 @@ export function setupMapLayers(map: MapLibreMap) {
     });
   }
 
-  // 2. Orbs symbol layer (visible from zoom 10)
+  // 2. Orbs symbol layer (visible at all zooms)
   if (!map.getLayer('orbs')) {
     map.addLayer({
       id: 'orbs',
       type: 'symbol',
       source: 'notes',
-      minzoom: 10,
+      minzoom: 1,
       layout: {
         'icon-image': [
           'concat',
@@ -32,8 +32,8 @@ export function setupMapLayers(map: MapLibreMap) {
         ],
         'icon-size': [
           '*',
-          ['interpolate', ['linear'], ['zoom'], 10, 0.28, 13, 0.5, 15, 0.8, 17, 1.0],
-          ['case', ['==', ['get', 'rarity'], 'legendary'], 1.3, ['==', ['get', 'rarity'], 'rare'], 1.15, 1.0],
+          ['interpolate', ['linear'], ['zoom'], 4, 0.45, 10, 0.65, 13, 0.85, 16, 1.0],
+          ['case', ['==', ['get', 'rarity'], 'legendary'], 1.25, ['==', ['get', 'rarity'], 'rare'], 1.15, 1.0],
         ],
         'symbol-sort-key': [
           'case',
@@ -47,13 +47,13 @@ export function setupMapLayers(map: MapLibreMap) {
     });
   }
 
-  // 3. Orb distance labels layer (sealed notes only, zoom 14.5 and up)
+  // 3. Orb distance labels layer (sealed notes only, zoom 10.5 and up)
   if (!map.getLayer('orb-labels')) {
     map.addLayer({
       id: 'orb-labels',
       type: 'symbol',
       source: 'notes',
-      minzoom: 14.5,
+      minzoom: 10.5,
       filter: ['!', ['get', 'unlocked']],
       layout: {
         'text-field': ['get', 'distLabel'],

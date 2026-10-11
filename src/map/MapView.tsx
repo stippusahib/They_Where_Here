@@ -231,8 +231,12 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   useEffect(() => {
+    syncNotesSource(true);
+  }, [notes]);
+
+  useEffect(() => {
     syncNotesSource(false);
-  }, [notes, position]);
+  }, [position]);
 
   useEffect(() => {
     syncReachSource();

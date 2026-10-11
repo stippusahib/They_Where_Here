@@ -541,7 +541,6 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       let isInFront = false;
 
       if (target && pos) {
-        noteGroup.visible = true;
         const dist = haversineDistance(pos.lat, pos.lng, target.lat, target.lng);
         let bear = bearing(pos.lat, pos.lng, target.lat, target.lng);
 
@@ -557,27 +556,49 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
         // Relative horizontal angular offset (-180 to +180)
         const deltaAzimuth = ((bear - heading + 540) % 360) - 180;
 
-        // Smooth perspective distance scaling
-        let visualDist = 2.2;
-        if (dist > 2.0 && dist <= 40.0) {
-          visualDist = 2.2 + (dist - 2.0) * 0.15;
-        } else if (dist > 40.0) {
-          visualDist = Math.min(12.0, 7.9 + (dist - 40.0) * 0.02);
+        // HARD PHYSICAL VISIBILITY CUTOFF:
+        // Notes beyond 100m are completely invisible in 3D AR camera space.
+        // The top compass needle still tracks bearing direction, but the 3D model & card are hidden.
+        if (dist > 100.0) {
+          noteGroup.visible = false;
+          isInFront = false;
+        } else {
+          noteGroup.visible = true;
+
+          // Perspective distance and scale curve: "longer it is, smaller it goes"
+          // Close (≤3m): scale 1.0, distance 2.2m
+          // Mid (3m < dist ≤ 20m): scale 1.0 down to 0.60, visual distance 2.2m to 9.3m
+          // Far (20m < dist ≤ 100m): scale 0.60 down to 0.20, visual distance pushes to 15m
+          let visualDist = 2.2;
+          let visualScale = 1.0;
+
+          if (dist <= 3.0) {
+            visualDist = 2.2;
+            visualScale = 1.0;
+          } else if (dist <= 20.0) {
+            visualDist = 2.2 + (dist - 3.0) * 0.42;
+            visualScale = Math.max(0.60, 1.0 - (dist - 3.0) * 0.023);
+          } else {
+            visualDist = 9.34 + (dist - 20.0) * 0.075;
+            visualScale = Math.max(0.20, 0.60 - (dist - 20.0) * 0.005);
+          }
+
+          noteGroup.scale.set(visualScale, visualScale, visualScale);
+
+          const rad = THREE.MathUtils.degToRad(deltaAzimuth);
+
+          // Position in camera view:
+          // When you pan right -> note shifts LEFT on screen
+          // When you pan left -> note shifts RIGHT on screen
+          // When you face away -> note is BEHIND camera (posZ > 0)
+          const posX = visualDist * Math.sin(rad);
+          const posZ = -visualDist * Math.cos(rad);
+          const posY = -0.7; // Sitting below eye level on ground
+
+          noteGroup.position.set(posX, posY, posZ);
+
+          isInFront = posZ < 0;
         }
-
-        const rad = THREE.MathUtils.degToRad(deltaAzimuth);
-
-        // Position in camera view:
-        // When you pan right -> note shifts LEFT on screen
-        // When you pan left -> note shifts RIGHT on screen
-        // When you face away -> note is BEHIND camera (posZ > 0)
-        const posX = visualDist * Math.sin(rad);
-        const posZ = -visualDist * Math.cos(rad);
-        const posY = -0.7; // Sitting below eye level on ground
-
-        noteGroup.position.set(posX, posY, posZ);
-
-        isInFront = posZ < 0;
       } else {
         noteGroup.visible = false;
         isInFront = false;
@@ -586,7 +607,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       // True 3D Reticle Lock-On Detection & Screen Projection
       let isLockedOn = false;
 
-      if (target && isInFront) {
+      if (target && isInFront && noteGroup.visible) {
         // 1. Center reticle detection (calculates exact distance to screen crosshair in NDC)
         const noteCenterNDC = new THREE.Vector3();
         noteCenterNDC.setFromMatrixPosition(noteMesh.matrixWorld);
@@ -1205,6 +1226,8 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
           >
             {!targetNote
               ? 'NO NOTES NEARBY • DROP A NOTE BELOW'
+              : distanceToTarget !== null && distanceToTarget > 100
+              ? `${formatDistance(distanceToTarget).toUpperCase()} AWAY • WALK WITHIN 100M VIA 2D MAP`
               : isReticleLockedOn && canTouchOrRead
               ? isMine
                 ? 'TARGET LOCKED • TAP TO INSPECT'

@@ -438,7 +438,16 @@ export const MapTab: React.FC = () => {
                 : 'far'
             }
             onClick={() => {
-              if (nearestNote) handleOrbClick(nearestNote);
+              if (nearestNote) {
+                handleOrbClick(nearestNote);
+                if (mapInstanceRef.current) {
+                  mapInstanceRef.current.easeTo({
+                    center: [nearestNote.lng, nearestNote.lat],
+                    zoom: 15.5,
+                    duration: 800,
+                  });
+                }
+              }
             }}
           />
         </div>
