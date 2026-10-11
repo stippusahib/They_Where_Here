@@ -30,6 +30,7 @@ import { useAppStore } from '@/state/store';
 import { countGraphemes } from '@/lib/graphemes';
 import { bodyAllowed } from '@/lib/moderation';
 import { vibrateSuccess } from '@/lib/haptics';
+import { playSealStamp } from '@/lib/audio';
 import { VoiceNoteRecorder } from './VoiceNoteRecorder';
 import { VoiceNotePlayer } from '@/ui/components/VoiceNotePlayer';
 import type { NoteRarity } from '@/contracts/types';
@@ -87,6 +88,7 @@ export function CreateNoteModal() {
     setIsSubmitting(true);
 
     if (hapticsEnabled) vibrateSuccess();
+    playSealStamp();
 
     const newNote: ExtendedNote = {
       id: crypto.randomUUID(),

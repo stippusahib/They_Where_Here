@@ -12,6 +12,7 @@ import {
   UserCircle,
 } from '@phosphor-icons/react';
 import type { TabId } from '@/contracts/types';
+import { playButtonClick } from '@/lib/audio';
 
 interface TabBarProps {
   active: TabId;
@@ -41,6 +42,7 @@ export const TabBar: React.FC<TabBarProps> = ({ active, onTabChange }) => {
             id={`tab-${id}`}
             className={`tab-item ${isActive ? 'active' : ''}`}
             onClick={() => {
+              playButtonClick();
               onTabChange(id);
               navigate(path);
             }}

@@ -156,7 +156,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setOffline: (isOffline) => set({ isOffline }),
 
   // Map notes
-  notes: [],
+  notes: SEED_NOTES,
   setNotes: (notes) => set({ notes }),
   addNoteLocally: (newNote) =>
     set((state) => ({

@@ -29,6 +29,7 @@ import {
 import { useAppStore } from '@/state/store';
 import { haversineDistance, bearing, formatDistance, toCardinal } from '@/lib/geo';
 import { hapticTap } from '@/lib/haptics';
+import { playRadarPing, playButtonClick } from '@/lib/audio';
 import type { ExtendedNote } from '@/lib/seedNotes';
 import { APP_NAME, POKEMON_GO_TOUCH_RADIUS_METERS } from '@/contracts/types';
 import { AppLogo } from '@/ui/components/AppLogo';
@@ -538,7 +539,6 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       const heading = deviceHeadingRef.current;
 
       let isInFront = false;
-      let angleDeg = 180;
 
       if (target && pos) {
         noteGroup.visible = true;
@@ -556,7 +556,6 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
 
         // Relative horizontal angular offset (-180 to +180)
         const deltaAzimuth = ((bear - heading + 540) % 360) - 180;
-        angleDeg = Math.abs(deltaAzimuth);
 
         // Smooth perspective distance scaling
         let visualDist = 2.2;
@@ -582,28 +581,26 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       } else {
         noteGroup.visible = false;
         isInFront = false;
-        angleDeg = 180;
       }
 
-      // Reticle Lock-On Detection (center crosshair directly aimed at note)
-      const isLockedOn = Boolean(target && angleDeg < 14 && isInFront);
-      isReticleLockedOnRef.current = isLockedOn;
-      if (isLockedOn !== wasReticleLockedRef.current) {
-        if (isLockedOn) hapticTap();
-        wasReticleLockedRef.current = isLockedOn;
-        setIsReticleLockedOn(isLockedOn);
-      }
+      // True 3D Reticle Lock-On Detection & Screen Projection
+      let isLockedOn = false;
 
-      // Project 3D note position to screen for 2D callout HUD card
       if (target && isInFront) {
-        const tempV = new THREE.Vector3();
-        tempV.setFromMatrixPosition(noteMesh.matrixWorld);
-        tempV.y += 1.3;
-        tempV.project(camera);
+        // 1. Center reticle detection (calculates exact distance to screen crosshair in NDC)
+        const noteCenterNDC = new THREE.Vector3();
+        noteCenterNDC.setFromMatrixPosition(noteMesh.matrixWorld);
+        noteCenterNDC.project(camera);
 
-        const isOnScreen = Math.abs(tempV.x) <= 1.05 && Math.abs(tempV.y) <= 1.05;
-        const screenX = ((tempV.x + 1) * width) / 2;
-        const screenY = ((-tempV.y + 1) * height) / 2;
+        const distFromCrosshair = Math.hypot(noteCenterNDC.x, noteCenterNDC.y);
+        isLockedOn = distFromCrosshair < 0.28 && noteCenterNDC.z > 0 && noteCenterNDC.z < 1;
+
+        // 2. Project floating callout card slightly above note
+        const cardPosNDC = noteCenterNDC.clone();
+        cardPosNDC.y += 0.22;
+        const isOnScreen = Math.abs(cardPosNDC.x) <= 1.05 && Math.abs(cardPosNDC.y) <= 1.05 && cardPosNDC.z < 1;
+        const screenX = ((cardPosNDC.x + 1) * width) / 2;
+        const screenY = ((-cardPosNDC.y + 1) * height) / 2;
 
         if (tagCardRef.current) {
           if (isOnScreen) {
@@ -615,6 +612,16 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
         }
       } else if (tagCardRef.current) {
         tagCardRef.current.style.display = 'none';
+      }
+
+      isReticleLockedOnRef.current = isLockedOn;
+      if (isLockedOn !== wasReticleLockedRef.current) {
+        if (isLockedOn) {
+          hapticTap();
+          playRadarPing();
+        }
+        wasReticleLockedRef.current = isLockedOn;
+        setIsReticleLockedOn(isLockedOn);
       }
 
       renderer.render(scene, camera);
@@ -767,11 +774,13 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
     }
 
     // Within 5 min and within 40m: Allowed!
+    playButtonClick();
     onOpenNote(targetNote);
   };
 
   // Handle dropping note with maximum accuracy validation
   const handleAttemptDrop = () => {
+    playButtonClick();
     if (accuracyTier === 'low') {
       setShowAccuracyDialog(true);
     } else {

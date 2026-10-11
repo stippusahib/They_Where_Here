@@ -14,6 +14,7 @@ import { useAppStore } from '@/state/store';
 import { resolveActiveTheme, applyTheme } from '@/ui/theme';
 import { Analytics } from '@vercel/analytics/react';
 import { fetchLiveNotes, subscribeToLiveNotes } from '@/lib/liveNotes';
+import { unlockAudio } from '@/lib/audio';
 
 /**
  * Root application component.
@@ -29,6 +30,21 @@ export function App() {
   const themeMode = useAppStore((s) => s.themeMode);
   const position = useAppStore((s) => s.position);
   const setActiveTheme = useAppStore((s) => s.setActiveTheme);
+
+  // Prime Web Audio engine on first user touch/click
+  useEffect(() => {
+    const handleGesture = () => {
+      unlockAudio();
+      window.removeEventListener('pointerdown', handleGesture);
+      window.removeEventListener('keydown', handleGesture);
+    };
+    window.addEventListener('pointerdown', handleGesture, { passive: true });
+    window.addEventListener('keydown', handleGesture, { passive: true });
+    return () => {
+      window.removeEventListener('pointerdown', handleGesture);
+      window.removeEventListener('keydown', handleGesture);
+    };
+  }, []);
 
   // Sync theme with sun position and mode
   useEffect(() => {

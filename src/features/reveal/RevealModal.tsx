@@ -9,6 +9,7 @@ import { ThumbsUp, ThumbsDown, CheckCircle, X } from '@phosphor-icons/react';
 import confetti from 'canvas-confetti';
 import { useAppStore } from '@/state/store';
 import { vibrateSuccess } from '@/lib/haptics';
+import { playUnlockChime, playButtonClick } from '@/lib/audio';
 import { SlashOverlay } from './SlashOverlay';
 import { RevealHeading } from './RevealHeading';
 import { NoteCard } from './NoteCard';
@@ -28,6 +29,7 @@ export const RevealModal: React.FC = () => {
     if (activeRevealNote) {
       setAnimating(true);
       if (hapticsEnabled) vibrateSuccess();
+      playUnlockChime(activeRevealNote.rarity);
     } else {
       setAnimating(false);
       setVote(null);
@@ -38,11 +40,13 @@ export const RevealModal: React.FC = () => {
   if (!activeRevealNote) return null;
 
   const handleVote = (choice: 'yes' | 'no') => {
+    playButtonClick();
     setVote(choice);
     if (hapticsEnabled) vibrateSuccess();
   };
 
   const handleSaveToPassport = () => {
+    playButtonClick();
     unlockNoteLocally(activeRevealNote.id);
     setSaved(true);
     if (hapticsEnabled) vibrateSuccess();
