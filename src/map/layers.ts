@@ -23,17 +23,11 @@ export function setupMapLayers(map: MapLibreMap) {
       source: 'notes',
       minzoom: 1,
       layout: {
-        'icon-image': [
-          'concat',
-          'orb-',
-          ['get', 'rarity'],
-          '-',
-          ['case', ['get', 'unlocked'], 'opened', 'sealed'],
-        ],
+        'icon-image': ['coalesce', ['get', 'icon'], 'orb-common-sealed'],
         'icon-size': [
           '*',
-          ['interpolate', ['linear'], ['zoom'], 4, 0.45, 10, 0.65, 13, 0.85, 16, 1.0],
-          ['case', ['==', ['get', 'rarity'], 'legendary'], 1.25, ['==', ['get', 'rarity'], 'rare'], 1.15, 1.0],
+          ['interpolate', ['linear'], ['zoom'], 1, 0.5, 6, 0.65, 11, 0.85, 14, 1.0, 16, 1.2],
+          ['case', ['==', ['get', 'rarity'], 'legendary'], 1.25, ['==', ['get', 'rarity'], 'rare'], 1.12, 1.0],
         ],
         'symbol-sort-key': [
           'case',
@@ -47,26 +41,32 @@ export function setupMapLayers(map: MapLibreMap) {
     });
   }
 
-  // 3. Orb distance labels layer (sealed notes only, zoom 10.5 and up)
+  // 3. Orb distance labels layer (sealed notes only, zoom 8 and up)
   if (!map.getLayer('orb-labels')) {
     map.addLayer({
       id: 'orb-labels',
       type: 'symbol',
       source: 'notes',
-      minzoom: 10.5,
+      minzoom: 8,
       filter: ['!', ['get', 'unlocked']],
       layout: {
-        'text-field': ['get', 'distLabel'],
+        'text-field': [
+          'case',
+          ['>=', ['zoom'], 13],
+          ['concat', ['get', 'title'], '\n', ['get', 'distLabel']],
+          ['get', 'distLabel'],
+        ],
         'text-font': ['Noto Sans Bold'],
         'text-size': 11,
-        'text-offset': [0, 2.1],
+        'text-offset': [0, 2.3],
         'text-anchor': 'top',
         'text-allow-overlap': false,
+        'text-max-width': 12,
       },
       paint: {
         'text-color': colors.labelOnMap,
         'text-halo-color': colors.halo,
-        'text-halo-width': 1.6,
+        'text-halo-width': 2.0,
       },
     });
   }

@@ -423,66 +423,189 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
 
     const noteGroup = new THREE.Group();
 
-    // ── Note Mesh Setup ──
+    // ── 3D Origami Letter Beacon Setup (Taste Standard / Anime Celestial Artifact) ──
+    const beaconGroup = new THREE.Group();
+    noteGroup.add(beaconGroup);
+
     let noteMesh: THREE.Mesh;
+    let flapMesh: THREE.Mesh | null = null;
     let sealMesh: THREE.Mesh | null = null;
+    let sealEmblemMesh: THREE.Mesh | null = null;
     let qMarkMesh: THREE.Mesh | null = null;
     const qMarkTexture = isMysteryLocked ? createQuestionMarkTexture() : null;
 
     if (isMysteryLocked) {
-      // 1. Obsidian Mystery Locked Silhouette with Glowing ?
-      const noteGeom = new THREE.OctahedronGeometry(1.2, 0);
+      // 1. Obsidian Mystery Locked Artifact
+      const noteGeom = new THREE.BoxGeometry(1.85, 1.25, 0.16);
       const noteMat = new THREE.MeshStandardMaterial({
         color: 0x14182e,
-        emissive: 0x27194a,
-        emissiveIntensity: 0.65,
-        roughness: 0.7,
-        metalness: 0.2,
+        emissive: 0x2e1950,
+        emissiveIntensity: 0.75,
+        roughness: 0.65,
+        metalness: 0.3,
         transparent: true,
-        opacity: 0.92,
-        flatShading: true,
+        opacity: 0.94,
       });
       noteMesh = new THREE.Mesh(noteGeom, noteMat);
-      noteMesh.scale.set(1.0, 1.35, 0.35);
-      noteGroup.add(noteMesh);
+      beaconGroup.add(noteMesh);
+
+      // Flap
+      const flapGeom = new THREE.ConeGeometry(0.75, 0.45, 3);
+      const flapMat = new THREE.MeshStandardMaterial({
+        color: 0x1e2442,
+        emissive: 0x3d2070,
+        emissiveIntensity: 0.6,
+        roughness: 0.6,
+      });
+      flapMesh = new THREE.Mesh(flapGeom, flapMat);
+      flapMesh.rotation.z = Math.PI;
+      flapMesh.position.set(0, 0.12, 0.10);
+      beaconGroup.add(flapMesh);
 
       if (qMarkTexture) {
-        const qGeom = new THREE.PlaneGeometry(1.2, 1.2);
+        const qGeom = new THREE.PlaneGeometry(1.1, 1.1);
         const qMat = new THREE.MeshBasicMaterial({
           map: qMarkTexture,
           transparent: true,
           side: THREE.DoubleSide,
         });
         qMarkMesh = new THREE.Mesh(qGeom, qMat);
-        qMarkMesh.position.z = 0.25;
-        noteGroup.add(qMarkMesh);
+        qMarkMesh.position.z = 0.32;
+        beaconGroup.add(qMarkMesh);
       }
     } else {
-      // 2. Warm Folded Origami Bird with Hanko Seal
-      const noteGeom = new THREE.OctahedronGeometry(1.15, 0);
+      // 2. Luminous Folded Origami Travel Envelope with Wax Seal
+      const noteGeom = new THREE.BoxGeometry(1.85, 1.25, 0.16);
+      const envelopeColor = isMine
+        ? 0xfff6e5
+        : targetNote?.rarity === 'legendary'
+        ? 0xfff0d0
+        : targetNote?.rarity === 'rare'
+        ? 0xeef9ff
+        : 0xffffff;
+
+      const emissiveColor = isMine
+        ? 0xffc93c
+        : targetNote?.rarity === 'legendary'
+        ? 0xffaa00
+        : targetNote?.rarity === 'rare'
+        ? 0x35b6ff
+        : 0x5ee2b5;
+
       const noteMat = new THREE.MeshStandardMaterial({
-        color: isMine ? 0xfff3d6 : 0xffffff,
-        emissive: isMine ? 0xffc93c : 0x5ee2b5,
-        emissiveIntensity: isHere ? 0.6 : 0.35,
-        metalness: 0.1,
-        roughness: 0.25,
-        flatShading: true,
+        color: envelopeColor,
+        emissive: emissiveColor,
+        emissiveIntensity: isHere ? 0.45 : 0.25,
+        roughness: 0.35,
+        metalness: 0.12,
       });
       noteMesh = new THREE.Mesh(noteGeom, noteMat);
-      noteMesh.scale.set(1.0, 1.35, 0.32);
-      noteGroup.add(noteMesh);
+      beaconGroup.add(noteMesh);
 
-      const sealGeom = new THREE.CylinderGeometry(0.36, 0.36, 0.45, 16);
+      // Origami Triangular Envelope Flap
+      const flapGeom = new THREE.ConeGeometry(0.78, 0.48, 3);
+      const flapMat = new THREE.MeshStandardMaterial({
+        color: isMine ? 0xffecd0 : 0xf7f4ec,
+        emissive: emissiveColor,
+        emissiveIntensity: isHere ? 0.35 : 0.18,
+        roughness: 0.4,
+        metalness: 0.1,
+      });
+      flapMesh = new THREE.Mesh(flapGeom, flapMat);
+      flapMesh.rotation.z = Math.PI;
+      flapMesh.position.set(0, 0.12, 0.10);
+      beaconGroup.add(flapMesh);
+
+      // Hanko Vermilion Wax Seal
+      const sealGeom = new THREE.CylinderGeometry(0.36, 0.40, 0.12, 32);
       const sealMat = new THREE.MeshStandardMaterial({
         color: 0xe8264c,
         emissive: 0xe8264c,
-        emissiveIntensity: 0.6,
-        roughness: 0.3,
+        emissiveIntensity: 0.55,
+        roughness: 0.25,
+        metalness: 0.15,
       });
       sealMesh = new THREE.Mesh(sealGeom, sealMat);
       sealMesh.rotation.x = Math.PI / 2;
-      noteGroup.add(sealMesh);
+      sealMesh.position.set(0, -0.05, 0.14);
+      beaconGroup.add(sealMesh);
+
+      // Embossed Golden Star Crest on the seal
+      const emblemGeom = new THREE.CylinderGeometry(0.20, 0.20, 0.05, 16);
+      const emblemMat = new THREE.MeshStandardMaterial({
+        color: 0xffd700,
+        emissive: 0xffaa00,
+        emissiveIntensity: 0.5,
+        metalness: 0.85,
+        roughness: 0.2,
+      });
+      sealEmblemMesh = new THREE.Mesh(emblemGeom, emblemMat);
+      sealEmblemMesh.rotation.x = Math.PI / 2;
+      sealEmblemMesh.position.set(0, -0.05, 0.20);
+      beaconGroup.add(sealEmblemMesh);
     }
+
+    // ── 3. Dual Revolving Celestial Astrolabe Gyro Rings ──
+    const ringAccent = isMysteryLocked
+      ? 0x8a5eff
+      : targetNote?.rarity === 'legendary'
+      ? 0xffc93c
+      : targetNote?.rarity === 'rare'
+      ? 0x35b6ff
+      : 0x5ee2b5;
+
+    const outerRingGeom = new THREE.TorusGeometry(1.85, 0.034, 16, 72);
+    const outerRingMat = new THREE.MeshStandardMaterial({
+      color: ringAccent,
+      emissive: ringAccent,
+      emissiveIntensity: 0.6,
+      roughness: 0.2,
+      metalness: 0.8,
+    });
+    const outerRingMesh = new THREE.Mesh(outerRingGeom, outerRingMat);
+    noteGroup.add(outerRingMesh);
+
+    const innerRingGeom = new THREE.TorusGeometry(1.48, 0.024, 16, 56);
+    const innerRingMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: ringAccent,
+      emissiveIntensity: 0.45,
+      roughness: 0.3,
+      metalness: 0.7,
+    });
+    const innerRingMesh = new THREE.Mesh(innerRingGeom, innerRingMat);
+    noteGroup.add(innerRingMesh);
+
+    // Glowing orbiting satellite jewels
+    const satelliteGeom = new THREE.SphereGeometry(0.08, 16, 16);
+    const satelliteMat = new THREE.MeshBasicMaterial({
+      color: isMysteryLocked ? 0xbaa1ff : 0xffffff,
+    });
+    const satellite1 = new THREE.Mesh(satelliteGeom, satelliteMat);
+    const satellite2 = new THREE.Mesh(satelliteGeom, satelliteMat);
+    noteGroup.add(satellite1);
+    noteGroup.add(satellite2);
+
+    // ── 4. Ambient Starlight Dust Particles ──
+    const particleCount = 28;
+    const particleGeom = new THREE.BufferGeometry();
+    const particlePositions = new Float32Array(particleCount * 3);
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2;
+      const radius = 1.35 + (i % 5) * 0.22;
+      particlePositions[i * 3] = Math.cos(angle) * radius;
+      particlePositions[i * 3 + 1] = ((i % 7) - 3) * 0.32;
+      particlePositions[i * 3 + 2] = Math.sin(angle) * radius;
+    }
+    particleGeom.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    const particleMat = new THREE.PointsMaterial({
+      color: ringAccent,
+      size: 0.12,
+      transparent: true,
+      opacity: 0.85,
+    });
+    const particleField = new THREE.Points(particleGeom, particleMat);
+    noteGroup.add(particleField);
 
     // Ground Shockwave Ring
     const ringColor = isMysteryLocked ? 0x6e44ff : isMine ? 0xffc93c : isHere ? 0x5ee2b5 : 0xe8264c;
@@ -500,7 +623,16 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
 
     scene.add(noteGroup);
     cameraRef.current = camera;
-    interactiveMeshesRef.current = [noteMesh, sealMesh, qMarkMesh, ringMesh].filter(Boolean) as THREE.Object3D[];
+    interactiveMeshesRef.current = [
+      noteMesh,
+      flapMesh,
+      sealMesh,
+      sealEmblemMesh,
+      qMarkMesh,
+      outerRingMesh,
+      innerRingMesh,
+      ringMesh,
+    ].filter(Boolean) as THREE.Object3D[];
 
     // ── Animation Loop ──
     let animId: number;
@@ -510,18 +642,36 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       animId = requestAnimationFrame(animate);
       const time = clock.getElapsedTime();
 
-      // Slow, steady origami spin in place (gentle hover, no jitter)
-      noteMesh.rotation.y = time * 0.75;
-      noteMesh.position.y = 0;
+      // Slow, steady origami hover & yaw
+      const hoverY = Math.sin(time * 2.0) * 0.12;
+      beaconGroup.position.y = hoverY;
+      beaconGroup.rotation.y = time * 0.65;
+      beaconGroup.rotation.x = Math.sin(time * 1.5) * 0.06;
 
-      if (sealMesh) {
-        sealMesh.position.y = 0;
-        sealMesh.rotation.y = noteMesh.rotation.y;
-      }
-      if (qMarkMesh) {
-        qMarkMesh.position.y = 0;
-        qMarkMesh.rotation.y = time * 0.75;
-      }
+      // Astrolabe Gyro Rings counter-rotation
+      outerRingMesh.position.y = hoverY;
+      outerRingMesh.rotation.x = Math.PI / 4 + Math.sin(time * 0.8) * 0.15;
+      outerRingMesh.rotation.y = time * 0.85;
+
+      innerRingMesh.position.y = hoverY;
+      innerRingMesh.rotation.x = -Math.PI / 3 + Math.cos(time * 0.7) * 0.15;
+      innerRingMesh.rotation.z = -time * 0.95;
+
+      // Satellites orbiting along gyro ring paths
+      satellite1.position.set(
+        Math.cos(time * 1.4) * 1.85,
+        hoverY + Math.sin(time * 1.4) * 0.35,
+        Math.sin(time * 1.4) * 1.85
+      );
+      satellite2.position.set(
+        Math.cos(-time * 1.2 + Math.PI) * 1.48,
+        hoverY + Math.sin(-time * 1.2) * 0.30,
+        Math.sin(-time * 1.2 + Math.PI) * 1.48
+      );
+
+      // Particle constellation rotation
+      particleField.position.y = hoverY;
+      particleField.rotation.y = time * 0.22;
 
       // Ground shockwave rings (slow floor expansion)
       const ringScale = 1.0 + (time % 2.5) * 0.4;

@@ -17,6 +17,9 @@ import {
   Crosshair,
   Camera,
   ShieldWarning,
+  CornersOut,
+  Plus,
+  Minus,
 } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import {
@@ -32,7 +35,7 @@ import {
   formatDistance,
 } from '@/lib/geo';
 import { MapView } from '@/map/MapView';
-import { showReachView, showStreetView } from '@/map/geoShapes';
+import { showReachView } from '@/map/geoShapes';
 import { HandleChip, WallChip } from '@/ui/components/HudChip';
 import { RadarChip } from '@/ui/components/RadarChip';
 import { ArrivedBar } from '@/features/notes/ArrivedBar';
@@ -44,7 +47,8 @@ import { CreateNoteModal } from '@/features/notes/CreateNoteModal';
 import { ARNoteView } from '@/features/ar/ARNoteView';
 import { checkLayoverExit } from '@/lib/visaCheck';
 import { requestLocationPermission } from '@/lib/locationService';
-import type { ExtendedNote } from '@/lib/seedNotes';
+import { createLocalDemoNotes, type ExtendedNote } from '@/lib/seedNotes';
+import { VENUE_CENTER } from '@/config/venue';
 
 export const MapTab: React.FC = () => {
   const position = useAppStore((s) => s.position);
@@ -81,10 +85,23 @@ export const MapTab: React.FC = () => {
     [passportCountry, layoverCountry]
   );
 
+  // Supply local demo exploration notes around tester's GPS if far from venue (> 15km)
+  const effectiveNotes = useMemo(() => {
+    if (!position) return notes;
+    const hasNearby = notes.some(
+      (n) => haversineDistance(position.lat, position.lng, n.lat, n.lng) < 15000
+    );
+    if (!hasNearby) {
+      const localDemos = createLocalDemoNotes(position.lat, position.lng);
+      return [...localDemos, ...notes];
+    }
+    return notes;
+  }, [notes, position]);
+
   // Filter and sort notes by distance
   const notesWithDistance = useMemo(() => {
     if (!position) return [];
-    return notes
+    return effectiveNotes
       .map((note) => {
         const dist = haversineDistance(position.lat, position.lng, note.lat, note.lng);
         const bear = bearing(position.lat, position.lng, note.lat, note.lng);
@@ -97,7 +114,7 @@ export const MapTab: React.FC = () => {
         };
       })
       .sort((a, b) => a.distanceMeters - b.distanceMeters);
-  }, [notes, position, reachMeters]);
+  }, [effectiveNotes, position, reachMeters]);
 
   // Notes inside reach count
   const notesInReachCount = useMemo(() => {
@@ -170,11 +187,64 @@ export const MapTab: React.FC = () => {
 
   const handleRecenterStreetView = () => {
     requestLocationPermission();
-    if (mapInstanceRef.current && position) {
-      showStreetView(
-        mapInstanceRef.current,
-        { lat: position.lat, lng: position.lng }
-      );
+    if (mapInstanceRef.current) {
+      const targetPos = position || { lat: VENUE_CENTER.lat, lng: VENUE_CENTER.lng };
+      mapInstanceRef.current.easeTo({
+        center: [targetPos.lng, targetPos.lat],
+        zoom: 16.0,
+        duration: 700,
+      });
+    }
+  };
+
+  const handleFitAllNotes = () => {
+    const map = mapInstanceRef.current;
+    if (!map || effectiveNotes.length === 0) return;
+
+    // Filter notes that are within 15km of the user or active cluster
+    const localNotes = position
+      ? effectiveNotes.filter(
+          (n) => haversineDistance(position.lat, position.lng, n.lat, n.lng) <= 15000
+        )
+      : [];
+
+    const targetNotes = localNotes.length > 0 ? localNotes : effectiveNotes;
+
+    const lngs = targetNotes.map((n) => n.lng);
+    const lats = targetNotes.map((n) => n.lat);
+    if (position && localNotes.length > 0) {
+      lngs.push(position.lng);
+      lats.push(position.lat);
+    }
+
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+
+    map.fitBounds(
+      [
+        [minLng, minLat],
+        [maxLng, maxLat],
+      ],
+      {
+        padding: { top: 90, bottom: 120, left: 50, right: 50 },
+        maxZoom: 16.2,
+        minZoom: 14.5,
+        duration: 800,
+      }
+    );
+  };
+
+  const handleZoomIn = () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.zoomIn({ duration: 300 });
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.zoomOut({ duration: 300 });
     }
   };
 
@@ -185,7 +255,7 @@ export const MapTab: React.FC = () => {
         <div className="map-layer">
           <MapView
             position={position}
-            notes={notes}
+            notes={effectiveNotes}
             layoverHours={layoverHours}
             reachKm={reachKm}
             nearestNote={nearestNote}
@@ -403,10 +473,12 @@ export const MapTab: React.FC = () => {
         ) : null}
       </div>
 
-      {/* ── MAP RECENTER BUTTON (Returns to Street View) ────────────── */}
+      {/* ── TACTICAL MAP CONTROLS CLUSTER (Recenter, Overview, Zoom) ── */}
       {!isListView && (
-        <div className="fixed top-14 sm:top-16 right-2.5 sm:right-4 z-40 safe-top pointer-events-auto">
+        <div className="fixed top-14 sm:top-16 right-2.5 sm:right-4 z-40 safe-top pointer-events-auto flex flex-col gap-2">
+          {/* Recenter Live GPS */}
           <button
+            type="button"
             onClick={handleRecenterStreetView}
             className="hud-chip flex items-center justify-center w-8 h-8 sm:w-[38px] sm:h-[38px] p-0 rounded-full cursor-pointer transition-transform active:scale-95 shadow-md"
             style={{
@@ -414,10 +486,58 @@ export const MapTab: React.FC = () => {
               border: '1.5px solid #EADECA',
               color: 'var(--hanko)',
             }}
-            title="Recenter Street View"
-            aria-label="Recenter Street View"
+            title="Recenter to Live Street View"
+            aria-label="Recenter to Live Street View"
           >
             <NavigationArrow size={16} weight="bold" color="var(--hanko)" />
+          </button>
+
+          {/* Fit All Notes Overview */}
+          <button
+            type="button"
+            onClick={handleFitAllNotes}
+            className="hud-chip flex items-center justify-center w-8 h-8 sm:w-[38px] sm:h-[38px] p-0 rounded-full cursor-pointer transition-transform active:scale-95 shadow-md"
+            style={{
+              background: '#FFFFFF',
+              border: '1.5px solid #EADECA',
+              color: 'var(--ink-700)',
+            }}
+            title="Overview: Fit All Notes On Screen"
+            aria-label="Overview: Fit All Notes On Screen"
+          >
+            <CornersOut size={16} weight="bold" color="var(--ink-700)" />
+          </button>
+
+          {/* Zoom In */}
+          <button
+            type="button"
+            onClick={handleZoomIn}
+            className="hud-chip flex items-center justify-center w-8 h-8 sm:w-[38px] sm:h-[38px] p-0 rounded-full cursor-pointer transition-transform active:scale-95 shadow-md"
+            style={{
+              background: '#FFFFFF',
+              border: '1.5px solid #EADECA',
+              color: 'var(--ink-700)',
+            }}
+            title="Zoom In (Detailed View)"
+            aria-label="Zoom In"
+          >
+            <Plus size={15} weight="bold" color="var(--ink-700)" />
+          </button>
+
+          {/* Zoom Out */}
+          <button
+            type="button"
+            onClick={handleZoomOut}
+            className="hud-chip flex items-center justify-center w-8 h-8 sm:w-[38px] sm:h-[38px] p-0 rounded-full cursor-pointer transition-transform active:scale-95 shadow-md"
+            style={{
+              background: '#FFFFFF',
+              border: '1.5px solid #EADECA',
+              color: 'var(--ink-700)',
+            }}
+            title="Zoom Out (Wide View)"
+            aria-label="Zoom Out"
+          >
+            <Minus size={15} weight="bold" color="var(--ink-700)" />
           </button>
         </div>
       )}

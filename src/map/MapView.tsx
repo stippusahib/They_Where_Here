@@ -19,6 +19,7 @@ import { VENUE_CENTER } from '@/config/venue';
 import { registerOrbs } from './OrbImages';
 import { setupMapLayers, updateMapLayerColors } from './layers';
 import { createUserPin } from './userPin';
+import { createNotePin } from './notePin';
 import { circlePolygon } from './geoShapes';
 import { haversineDistance, formatDistance } from '@/lib/geo';
 import type { ExtendedNote } from '@/lib/seedNotes';
@@ -52,7 +53,18 @@ export const MapView: React.FC<MapViewProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const userMarkerRef = useRef<Marker | null>(null);
+  const userPinSetHeadingRef = useRef<((h: number | null) => void) | null>(null);
   const proxyMarkerRef = useRef<Marker | null>(null);
+  const notePinsRef = useRef<
+    Record<
+      string,
+      {
+        marker: Marker;
+        update: (note: ExtendedNote, label: string) => void;
+        destroy: () => void;
+      }
+    >
+  >({});
   const isLoadedRef = useRef(false);
 
   const lastAccuracyUpdateRef = useRef<number>(0);
@@ -63,6 +75,13 @@ export const MapView: React.FC<MapViewProps> = ({
 
   const centerLng = position?.lng ?? VENUE_CENTER.lng;
   const centerLat = position?.lat ?? VENUE_CENTER.lat;
+
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
+  const positionRef = useRef(position);
+  positionRef.current = position;
+  const onOrbClickRef = useRef(onOrbClick);
+  onOrbClickRef.current = onOrbClick;
 
   // Initialize MapLibre
   useEffect(() => {
@@ -75,7 +94,7 @@ export const MapView: React.FC<MapViewProps> = ({
       container: containerRef.current,
       style: initialStyle,
       center: [centerLng, centerLat],
-      zoom: 15.2,
+      zoom: 16.0,
       pitch: 0,
       bearing: 0,
       dragRotate: false,
@@ -94,6 +113,8 @@ export const MapView: React.FC<MapViewProps> = ({
       setupMapLayers(map);
       isLoadedRef.current = true;
       syncAllSources(true);
+      syncUserMarker();
+      syncNoteMarkers();
       if (onMapReady) {
         onMapReady(map);
       }
@@ -105,6 +126,8 @@ export const MapView: React.FC<MapViewProps> = ({
       setupMapLayers(map);
       updateMapLayerColors(map);
       syncAllSources(true);
+      syncUserMarker();
+      syncNoteMarkers();
     });
 
     // Orb click handler
@@ -114,8 +137,8 @@ export const MapView: React.FC<MapViewProps> = ({
       if (!feat) return;
       const noteId = feat.properties?.id;
       if (noteId) {
-        const found = notes.find((n) => n.id === noteId);
-        if (found) onOrbClick(found);
+        const found = notesRef.current.find((n) => n.id === noteId);
+        if (found && onOrbClickRef.current) onOrbClickRef.current(found);
       }
     });
 
@@ -127,6 +150,8 @@ export const MapView: React.FC<MapViewProps> = ({
     });
 
     return () => {
+      Object.values(notePinsRef.current).forEach((pin) => pin.destroy());
+      notePinsRef.current = {};
       map.remove();
       mapRef.current = null;
       isLoadedRef.current = false;
@@ -163,6 +188,7 @@ export const MapView: React.FC<MapViewProps> = ({
           dist = Math.round(haversineDistance(position.lat, position.lng, note.lat, note.lng));
           distLabel = formatDistance(dist);
         }
+        const icon = `orb-${note.rarity}-${note.unlocked ? 'opened' : 'sealed'}`;
         return {
           type: 'Feature' as const,
           geometry: {
@@ -173,6 +199,7 @@ export const MapView: React.FC<MapViewProps> = ({
             id: note.id,
             rarity: note.rarity,
             unlocked: Boolean(note.unlocked),
+            icon,
             title: note.title,
             body: note.body,
             dist,
@@ -247,25 +274,145 @@ export const MapView: React.FC<MapViewProps> = ({
   }, [position]);
 
   const hasInitialCenteredRef = useRef(false);
+  const hasRealGpsCenteredRef = useRef(false);
 
-  // Manage User Marker (Step 1.2: DOM marker created once, only setLngLat afterwards)
+  // Synchronize User Location Pin (always attached & on top)
+  const syncUserMarker = () => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const currentPos = positionRef.current || {
+      lat: VENUE_CENTER.lat,
+      lng: VENUE_CENTER.lng,
+      accuracy: 20,
+      heading: null,
+      timestamp: Date.now(),
+    };
+
+    const userPinEl = userMarkerRef.current?.getElement();
+    const isAttached = Boolean(userPinEl && document.body.contains(userPinEl));
+
+    if (!userMarkerRef.current || !isAttached) {
+      if (userMarkerRef.current) {
+        try {
+          userMarkerRef.current.remove();
+        } catch {
+          // ignore
+        }
+      }
+      const { marker, setHeading } = createUserPin();
+      marker.setLngLat([currentPos.lng, currentPos.lat]).addTo(map);
+      marker.getElement().style.zIndex = '100';
+      userMarkerRef.current = marker;
+      userPinSetHeadingRef.current = setHeading;
+      setHeading(currentPos.heading);
+      console.log('[UserPin] Mounted fresh user pin marker at', currentPos.lng, currentPos.lat);
+    } else {
+      userMarkerRef.current.setLngLat([currentPos.lng, currentPos.lat]);
+      if (userPinSetHeadingRef.current) {
+        userPinSetHeadingRef.current(currentPos.heading);
+      }
+    }
+  };
+
+  // Synchronize Note DOM Pins (with deterministic de-clustering for overlapping coords)
+  const syncNoteMarkers = () => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const currentPins = notePinsRef.current;
+    const currentNotes = notesRef.current;
+    const currentNoteIds = new Set(currentNotes.map((n) => n.id));
+
+    // Remove obsolete pins
+    for (const id of Object.keys(currentPins)) {
+      if (!currentNoteIds.has(id)) {
+        currentPins[id]?.destroy();
+        delete currentPins[id];
+      }
+    }
+
+    // Group notes by coordinate proximity (< 0.0001 deg ~10m) to de-cluster overlapping pins
+    const coordinateGroups: Record<string, ExtendedNote[]> = {};
+    currentNotes.forEach((note) => {
+      const key = `${note.lat.toFixed(4)},${note.lng.toFixed(4)}`;
+      if (!coordinateGroups[key]) coordinateGroups[key] = [];
+      coordinateGroups[key].push(note);
+    });
+
+    const pos = positionRef.current;
+
+    currentNotes.forEach((note) => {
+      let distLabel = '';
+      if (pos) {
+        const dist = Math.round(haversineDistance(pos.lat, pos.lng, note.lat, note.lng));
+        distLabel = formatDistance(dist);
+      }
+
+      // De-cluster notes that share the exact same spot (like TinkerSpace & College AD)
+      const key = `${note.lat.toFixed(4)},${note.lng.toFixed(4)}`;
+      const group = coordinateGroups[key];
+      let displayLat = note.lat;
+      let displayLng = note.lng;
+
+      if (group && group.length > 1) {
+        const index = group.findIndex((n) => n.id === note.id);
+        const angle = (index * 2 * Math.PI) / group.length;
+        // 22 meter radius visual separation
+        displayLat += Math.sin(angle) * 0.0002;
+        displayLng += Math.cos(angle) * 0.0002;
+      }
+
+      const displayNote = { ...note, lat: displayLat, lng: displayLng };
+
+      const existing = currentPins[note.id];
+      const pinEl = existing?.marker?.getElement();
+      const isAttached = pinEl && pinEl.parentElement;
+
+      if (existing && isAttached) {
+        existing.update(displayNote, distLabel);
+      } else {
+        if (existing) {
+          existing.destroy();
+        }
+        const newPin = createNotePin(displayNote, distLabel, (clicked) => {
+          if (onOrbClickRef.current) {
+            onOrbClickRef.current(clicked);
+          }
+        });
+        newPin.marker.addTo(map);
+        currentPins[note.id] = newPin;
+      }
+    });
+  };
+
+  // Manage User Marker & Camera centering on position updates
   useEffect(() => {
+    syncUserMarker();
+
     const map = mapRef.current;
     if (!map || !position) return;
 
-    if (!userMarkerRef.current) {
-      const { marker } = createUserPin();
-      marker.setLngLat([position.lng, position.lat]).addTo(map);
-      userMarkerRef.current = marker;
-    } else {
-      userMarkerRef.current.setLngLat([position.lng, position.lat]);
+    if (!hasInitialCenteredRef.current) {
+      hasInitialCenteredRef.current = true;
+      map.easeTo({ center: [position.lng, position.lat], zoom: 16.0, duration: 700 });
     }
 
-    if (!hasInitialCenteredRef.current && position) {
-      hasInitialCenteredRef.current = true;
-      map.easeTo({ center: [position.lng, position.lat], zoom: 15.5, duration: 700 });
+    // Detect real device GPS fix away from default placeholder
+    const isRealGps =
+      Math.abs(position.lat - VENUE_CENTER.lat) > 0.005 ||
+      Math.abs(position.lng - VENUE_CENTER.lng) > 0.005;
+
+    if (isRealGps && !hasRealGpsCenteredRef.current) {
+      hasRealGpsCenteredRef.current = true;
+      map.easeTo({ center: [position.lng, position.lat], zoom: 16.0, duration: 800 });
     }
   }, [position]);
+
+  // Manage Note DOM Markers on notes or position change
+  useEffect(() => {
+    syncNoteMarkers();
+  }, [notes, position, onOrbClick]);
 
   // Manage Nearest Orb Pulse Proxy Marker (within 400m)
   useEffect(() => {
