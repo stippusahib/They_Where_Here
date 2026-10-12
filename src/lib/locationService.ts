@@ -10,8 +10,29 @@ import type { GeoPosition } from '@/contracts/types';
 let watchId: number | null = null;
 let permissionStatusObj: PermissionStatus | null = null;
 
+function updateStoreWithPosition(pos: GeolocationPosition): void {
+  const store = useAppStore.getState();
+  if (!store.isSimulated) {
+    const heading =
+      typeof pos.coords.heading === 'number' && !Number.isNaN(pos.coords.heading)
+        ? pos.coords.heading
+        : (store.position?.heading ?? null);
+    const newPos: GeoPosition = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      accuracy: pos.coords.accuracy,
+      heading,
+      timestamp: pos.timestamp,
+    };
+    store.setPosition(newPos);
+  }
+  store.setLocationPermission('granted');
+}
+
 /**
- * Requests location permission and attempts to fetch an immediate GPS fix.
+ * Requests location permission and attempts an immediate fast GPS fix.
+ * Uses high accuracy first with a quick fallback to standard accuracy
+ * to prevent mobile GPS timeout freezes.
  */
 export async function requestLocationPermission(): Promise<boolean> {
   if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -21,40 +42,49 @@ export async function requestLocationPermission(): Promise<boolean> {
   }
 
   return new Promise((resolve) => {
+    // 1. Try quick fix with high accuracy (4s timeout)
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const store = useAppStore.getState();
-        if (!store.isSimulated) {
-          const heading =
-            typeof pos.coords.heading === 'number' && !Number.isNaN(pos.coords.heading)
-              ? pos.coords.heading
-              : (store.position?.heading ?? null);
-          const newPos: GeoPosition = {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-            heading,
-            timestamp: pos.timestamp,
-          };
-          store.setPosition(newPos);
-        }
-        store.setLocationPermission('granted');
+        updateStoreWithPosition(pos);
         resolve(true);
       },
       (err) => {
-        console.warn('[LocationService] Geolocation request failed:', err.code, err.message);
-        const store = useAppStore.getState();
         if (err.code === err.PERMISSION_DENIED) {
-          store.setLocationPermission('denied');
-        } else {
-          store.setLocationPermission('prompt');
+          console.warn('[LocationService] Permission denied by user.');
+          useAppStore.getState().setLocationPermission('denied');
+          resolve(false);
+          return;
         }
-        resolve(false);
+
+        // 2. High-accuracy timed out or unavailable indoors: fallback to fast standard fix (cell/wifi)
+        console.warn('[LocationService] High accuracy timed out, falling back to standard accuracy fix.');
+        navigator.geolocation.getCurrentPosition(
+          (fallbackPos) => {
+            updateStoreWithPosition(fallbackPos);
+            resolve(true);
+          },
+          (finalErr) => {
+            console.warn('[LocationService] Final geolocation attempt failed:', finalErr.code, finalErr.message);
+            const store = useAppStore.getState();
+            if (finalErr.code === finalErr.PERMISSION_DENIED) {
+              store.setLocationPermission('denied');
+            } else {
+              // If hardware is slow but permission granted, don't block user
+              store.setLocationPermission('granted');
+            }
+            resolve(false);
+          },
+          {
+            enableHighAccuracy: false,
+            timeout: 6000,
+            maximumAge: 60000,
+          }
+        );
       },
       {
         enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0,
+        timeout: 4000,
+        maximumAge: 15000,
       }
     );
   });
@@ -77,6 +107,11 @@ export function initLocationWatcher(): () => void {
       .then((status) => {
         permissionStatusObj = status;
         useAppStore.getState().setLocationPermission(status.state);
+
+        // Auto-acquire fix immediately if permission is already granted on device
+        if (status.state === 'granted') {
+          requestLocationPermission();
+        }
 
         status.onchange = () => {
           useAppStore.getState().setLocationPermission(status.state);

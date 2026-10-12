@@ -4,7 +4,7 @@
  * Server authoritative: NEVER displays note body before unlock!
  * ============================================================ */
 
-import { X, LockKey, Sparkle, Flag, Footprints, SpeakerHigh } from '@phosphor-icons/react';
+import { X, LockKey, Sparkle, Flag, Footprints, SpeakerHigh, CheckCircle } from '@phosphor-icons/react';
 import { RarityTag } from '@/ui/components/RarityTag';
 import { useAppStore } from '@/state/store';
 import { POKEMON_GO_TOUCH_RADIUS_METERS } from '@/contracts/types';
@@ -50,8 +50,16 @@ export function OrbSheet({ note, distanceMeters, onClose, onOpenNote }: OrbSheet
         {/* Header */}
         <div className="flex items-start justify-between">
           <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <RarityTag rarity={note.rarity} />
+              {note.unlocked && (
+                <span
+                  className="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                  style={{ background: '#EDFDF6', color: '#1B825D', border: '1px solid #A7F3D0' }}
+                >
+                  Already Opened
+                </span>
+              )}
               {note.is_seed && (
                 <span
                   style={{
@@ -100,11 +108,17 @@ export function OrbSheet({ note, distanceMeters, onClose, onOpenNote }: OrbSheet
         <div
           className="p-3.5 rounded-xl flex items-center gap-3"
           style={{
-            background: isWithinReach ? 'rgba(94, 226, 181, 0.12)' : 'var(--paper)',
-            border: `1.5px solid ${isWithinReach ? 'var(--mint)' : 'var(--paper-edge)'}`,
+            background: note.unlocked
+              ? 'rgba(94, 226, 181, 0.16)'
+              : isWithinReach
+              ? 'rgba(94, 226, 181, 0.12)'
+              : 'var(--paper)',
+            border: `1.5px solid ${note.unlocked || isWithinReach ? 'var(--mint)' : 'var(--paper-edge)'}`,
           }}
         >
-          {isWithinReach ? (
+          {note.unlocked ? (
+            <CheckCircle size={24} weight="fill" color="var(--mint)" />
+          ) : isWithinReach ? (
             <Sparkle size={24} weight="fill" color="var(--mint)" />
           ) : (
             <LockKey size={24} weight="bold" color="var(--warn)" />
@@ -115,10 +129,12 @@ export function OrbSheet({ note, distanceMeters, onClose, onOpenNote }: OrbSheet
               style={{
                 fontFamily: 'var(--font-display)',
                 fontSize: 'var(--text-xs)',
-                color: isWithinReach ? '#167D59' : 'var(--ink-900)',
+                color: note.unlocked || isWithinReach ? '#167D59' : 'var(--ink-900)',
               }}
             >
-              {isWithinReach
+              {note.unlocked
+                ? 'FOUND & UNLOCKED · IN YOUR PASSPORT'
+                : isWithinReach
                 ? 'YOU ARE HERE! SEAL READY TO BREAK'
                 : `${formatDistance(distanceMeters)} AWAY`}
             </p>
@@ -129,7 +145,9 @@ export function OrbSheet({ note, distanceMeters, onClose, onOpenNote }: OrbSheet
                 color: 'var(--ink-500)',
               }}
             >
-              {isWithinReach
+              {note.unlocked
+                ? 'You already discovered this note. Re-read the traveller advice anytime.'
+                : isWithinReach
                 ? 'Standing within 60 meters unlocks verified traveller advice.'
                 : 'Walk closer to this physical location to break the seal and read.'}
             </p>
@@ -178,7 +196,20 @@ export function OrbSheet({ note, distanceMeters, onClose, onOpenNote }: OrbSheet
 
         {/* Action Button */}
         <div className="mt-1 flex flex-col gap-2">
-          {isWithinReach ? (
+          {note.unlocked ? (
+            <button
+              onClick={() => onOpenNote(note)}
+              className="slant-btn slant-btn--primary w-full py-3.5 flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+              style={{
+                fontSize: 'var(--text-base)',
+                minHeight: 48,
+                background: '#1B825D',
+              }}
+            >
+              <CheckCircle size={18} weight="fill" />
+              <span>Read Opened Note</span>
+            </button>
+          ) : isWithinReach ? (
             <button
               onClick={() => onOpenNote(note)}
               className="slant-btn slant-btn--primary w-full py-3.5 flex items-center justify-center gap-2 cursor-pointer shadow-lg animate-pulse"

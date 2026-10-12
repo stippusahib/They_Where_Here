@@ -47,6 +47,10 @@ export const RevealModal: React.FC = () => {
 
   const handleSaveToPassport = () => {
     playButtonClick();
+    if (activeRevealNote.unlocked) {
+      setActiveRevealNote(null);
+      return;
+    }
     unlockNoteLocally(activeRevealNote.id);
     setSaved(true);
     if (hapticsEnabled) vibrateSuccess();
@@ -99,7 +103,11 @@ export const RevealModal: React.FC = () => {
         </button>
 
         {/* Slam Heading */}
-        <RevealHeading rarity={activeRevealNote.rarity} playing={animating} />
+        <RevealHeading
+          rarity={activeRevealNote.rarity}
+          playing={animating}
+          isAlreadyOpened={Boolean(activeRevealNote.unlocked)}
+        />
 
         {/* Demo data badge */}
         {activeRevealNote.is_seed && (
@@ -126,6 +134,8 @@ export const RevealModal: React.FC = () => {
 
         {/* Die-cut Sticker Note Card */}
         <NoteCard
+          title={activeRevealNote.title}
+          isAlreadyOpened={Boolean(activeRevealNote.unlocked)}
           body={activeRevealNote.body}
           rarity={activeRevealNote.rarity}
           stamp={`#${activeRevealNote.stamp}`}
@@ -208,6 +218,11 @@ export const RevealModal: React.FC = () => {
               <>
                 <CheckCircle size={20} weight="fill" />
                 <span>Stamped to Passport!</span>
+              </>
+            ) : activeRevealNote.unlocked ? (
+              <>
+                <CheckCircle size={20} weight="fill" />
+                <span>In Your Passport · Keep Exploring</span>
               </>
             ) : (
               <span>Collect & Stamp to Passport</span>

@@ -79,6 +79,7 @@ export interface UnlockResult {
 /** A note in the user's passport (from my_passport RPC) */
 export interface PassportNote {
   id: string;
+  title?: string;
   body: string;
   rarity: NoteRarity;
   stamp: number;

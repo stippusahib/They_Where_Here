@@ -332,10 +332,10 @@ export const MapView: React.FC<MapViewProps> = ({
       }
     }
 
-    // Group notes by coordinate proximity (< 0.0001 deg ~10m) to de-cluster overlapping pins
+    // Group notes by identical coordinate to prevent overlapping pins from blocking clicks
     const coordinateGroups: Record<string, ExtendedNote[]> = {};
     currentNotes.forEach((note) => {
-      const key = `${note.lat.toFixed(4)},${note.lng.toFixed(4)}`;
+      const key = `${note.lat.toFixed(6)},${note.lng.toFixed(6)}`;
       if (!coordinateGroups[key]) coordinateGroups[key] = [];
       coordinateGroups[key].push(note);
     });
@@ -349,8 +349,8 @@ export const MapView: React.FC<MapViewProps> = ({
         distLabel = formatDistance(dist);
       }
 
-      // De-cluster notes that share the exact same spot (like TinkerSpace & College AD)
-      const key = `${note.lat.toFixed(4)},${note.lng.toFixed(4)}`;
+      // Micro-separate only notes that share the exact same coordinate (< 1m)
+      const key = `${note.lat.toFixed(6)},${note.lng.toFixed(6)}`;
       const group = coordinateGroups[key];
       let displayLat = note.lat;
       let displayLng = note.lng;
@@ -358,9 +358,9 @@ export const MapView: React.FC<MapViewProps> = ({
       if (group && group.length > 1) {
         const index = group.findIndex((n) => n.id === note.id);
         const angle = (index * 2 * Math.PI) / group.length;
-        // 22 meter radius visual separation
-        displayLat += Math.sin(angle) * 0.0002;
-        displayLng += Math.cos(angle) * 0.0002;
+        // Subtle 3-meter separation so both pins are clickable without drifting
+        displayLat += Math.sin(angle) * 0.000027;
+        displayLng += Math.cos(angle) * 0.000027;
       }
 
       const displayNote = { ...note, lat: displayLat, lng: displayLng };

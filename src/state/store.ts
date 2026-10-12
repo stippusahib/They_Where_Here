@@ -117,7 +117,47 @@ const DEFAULT_PROFILE: UserProfile = {
   created_at: new Date().toISOString(),
 };
 
-const DEFAULT_POSITION: GeoPosition = {
+function getStoredOnboarding(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return localStorage.getItem('twh_has_seen_onboarding') === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function getStoredUnlockedIds(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem('twh_unlocked_ids');
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveUnlockedId(id: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = getStoredUnlockedIds();
+    current.add(id);
+    localStorage.setItem('twh_unlocked_ids', JSON.stringify(Array.from(current)));
+  } catch {
+    // ignore
+  }
+}
+
+function getCachedPosition(): GeoPosition | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('twh_last_pos');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+const DEFAULT_POSITION: GeoPosition = getCachedPosition() || {
   lat: VENUE_CENTER.lat,
   lng: VENUE_CENTER.lng,
   accuracy: 14,
@@ -143,7 +183,16 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Location
   position: DEFAULT_POSITION,
-  setPosition: (position) => set({ position }),
+  setPosition: (position) => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('twh_last_pos', JSON.stringify(position));
+      } catch {
+        // ignore
+      }
+    }
+    set({ position });
+  },
   locationPermission: 'unknown',
   setLocationPermission: (locationPermission) => set({ locationPermission }),
 
@@ -157,26 +206,51 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Map notes
   notes: SEED_NOTES,
-  setNotes: (notes) => set({ notes }),
-  addNoteLocally: (newNote) =>
-    set((state) => ({
+  setNotes: (notes) => {
+    const unlockedIds = getStoredUnlockedIds();
+    const normalized = notes.map((n) =>
+      unlockedIds.has(n.id) ? { ...n, unlocked: true } : n
+    );
+    set({ notes: normalized });
+  },
+  addNoteLocally: (newNote) => {
+    if (newNote.unlocked) {
+      saveUnlockedId(newNote.id);
+    }
+    return set((state) => ({
       notes: [newNote, ...state.notes.filter((n) => n.id !== newNote.id)],
       profile: state.profile
         ? { ...state.profile, xp: state.profile.xp + 50 }
         : null,
-    })),
-  addOrUpdateNote: (newNote) =>
-    set((state) => {
+    }));
+  },
+  addOrUpdateNote: (newNote) => {
+    const unlockedIds = getStoredUnlockedIds();
+    const isUnlocked = Boolean(newNote.unlocked || unlockedIds.has(newNote.id));
+    const resolvedNote = isUnlocked ? { ...newNote, unlocked: true } : newNote;
+    if (isUnlocked) {
+      saveUnlockedId(newNote.id);
+    }
+    return set((state) => {
       const exists = state.notes.some((n) => n.id === newNote.id);
       if (exists) {
         return {
-          notes: state.notes.map((n) => (n.id === newNote.id ? newNote : n)),
+          notes: state.notes.map((n) => (n.id === newNote.id ? resolvedNote : n)),
         };
       }
-      return { notes: [newNote, ...state.notes] };
-    }),
-  clearAllNotes: () => set({ notes: [] }),
+      return { notes: [resolvedNote, ...state.notes] };
+    });
+  },
+  clearAllNotes: () => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('twh_unlocked_ids');
+      } catch {}
+    }
+    set({ notes: [] });
+  },
   unlockNoteLocally: (noteId) => {
+    saveUnlockedId(noteId);
     const state = get();
     const target = state.notes.find((n) => n.id === noteId);
     if (!target) return undefined;
@@ -184,6 +258,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const updatedNote = { ...target, unlocked: true };
     const passportEntry: PassportNote = {
       id: target.id,
+      title: target.title,
       body: target.body,
       rarity: target.rarity,
       stamp: target.stamp,
@@ -193,6 +268,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       worth_yes: target.worth_yes,
       worth_no: target.worth_no,
       is_seed: target.is_seed,
+      audio_url: target.audio_url,
+      audio_duration: target.audio_duration,
     };
 
     set({
@@ -267,9 +344,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   setPassportCountry: (passportCountry) => set({ passportCountry }),
   layoverCountry: 'United Arab Emirates',
   setLayoverCountry: (layoverCountry) => set({ layoverCountry }),
-  hasSeenLayoverOnboarding: false,
-  setHasSeenLayoverOnboarding: (hasSeenLayoverOnboarding) =>
-    set({ hasSeenLayoverOnboarding }),
+  hasSeenLayoverOnboarding: getStoredOnboarding(),
+  setHasSeenLayoverOnboarding: (hasSeenLayoverOnboarding) => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('twh_has_seen_onboarding', String(hasSeenLayoverOnboarding));
+      } catch {}
+    }
+    set({ hasSeenLayoverOnboarding });
+  },
 
   // Audio
   audioUnlocked: false,

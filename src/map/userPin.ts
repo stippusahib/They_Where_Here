@@ -40,7 +40,20 @@ export function createUserPin(): {
   `;
   el.appendChild(halo);
 
-  // 2. Heading Pointer Beam (Anime Directional Compass Cone)
+  // 2. Heading Pointer Beam (Anime Directional Compass Cone anchored to center)
+  const headingGimbal = document.createElement('div');
+  headingGimbal.className = 'user-pin-heading-gimbal';
+  headingGimbal.style.cssText = `
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: none;
+    transform-origin: center center;
+    transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+    z-index: 2;
+  `;
+  el.appendChild(headingGimbal);
+
   const cone = document.createElement('div');
   cone.className = 'user-pin-heading-cone';
   cone.style.cssText = `
@@ -54,11 +67,8 @@ export function createUserPin(): {
     border-right: 8px solid transparent;
     border-bottom: 14px solid #E8264C;
     filter: drop-shadow(0 2px 4px rgba(15, 18, 48, 0.45));
-    transition: transform 0.2s ease-out;
-    display: none;
-    z-index: 2;
   `;
-  el.appendChild(cone);
+  headingGimbal.appendChild(cone);
 
   // 3. User Core Hanko Disc
   const dot = document.createElement('div');
@@ -111,10 +121,10 @@ export function createUserPin(): {
 
   const setHeading = (heading: number | null) => {
     if (heading !== null && !Number.isNaN(heading)) {
-      cone.style.display = 'block';
-      cone.style.transform = `translateX(-50%) rotate(${heading}deg)`;
+      headingGimbal.style.display = 'block';
+      headingGimbal.style.transform = `rotate(${heading}deg)`;
     } else {
-      cone.style.display = 'none';
+      headingGimbal.style.display = 'none';
     }
   };
 

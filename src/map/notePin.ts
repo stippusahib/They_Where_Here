@@ -214,7 +214,17 @@ export function createNotePin(
       `
       : config.symbol;
 
-    pill.textContent = label || (n.unlocked ? 'OPENED' : 'NOTE');
+    if (n.unlocked) {
+      pill.style.background = '#1B825D';
+      pill.style.borderColor = 'rgba(255, 255, 255, 0.8)';
+      pill.style.color = '#FFFFFF';
+      pill.textContent = label ? `OPENED · ${label}` : 'OPENED';
+    } else {
+      pill.style.background = '#14143A';
+      pill.style.borderColor = 'rgba(255, 255, 255, 0.35)';
+      pill.style.color = '#FFFFFF';
+      pill.textContent = label || 'NOTE';
+    }
   };
 
   render(note, distLabel);
@@ -222,6 +232,9 @@ export function createNotePin(
   const marker = new Marker({
     element: wrap,
     anchor: 'center',
+    offset: [0, 12],
+    pitchAlignment: 'viewport',
+    rotationAlignment: 'viewport',
   }).setLngLat([note.lng, note.lat]);
 
   return {

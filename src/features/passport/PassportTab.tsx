@@ -139,8 +139,14 @@ export const PassportTab: React.FC = () => {
                       </div>
                     </div>
 
+                    {note.title && (
+                      <h4 className="text-xs font-display font-bold text-black line-clamp-1 mb-1">
+                        {note.title}
+                      </h4>
+                    )}
+
                     <p
-                      className="line-clamp-4 text-xs font-bold leading-relaxed text-[#14143A] mb-3"
+                      className="line-clamp-4 text-xs font-medium leading-relaxed text-[#14143A] mb-3"
                       style={{ fontFamily: 'var(--font-body)' }}
                     >
                       {note.body}
@@ -199,6 +205,11 @@ export const PassportTab: React.FC = () => {
 
             {/* Note Body */}
             <div className="py-1">
+              {selectedNote.title && (
+                <h3 className="text-base font-display font-bold text-black mb-1.5">
+                  {selectedNote.title}
+                </h3>
+              )}
               <p
                 className="text-base font-bold leading-relaxed text-[#14143A]"
                 style={{ fontFamily: 'var(--font-body)' }}
