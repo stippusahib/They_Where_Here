@@ -144,7 +144,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Location
   position: DEFAULT_POSITION,
   setPosition: (position) => set({ position }),
-  locationPermission: 'granted',
+  locationPermission: 'unknown',
   setLocationPermission: (locationPermission) => set({ locationPermission }),
 
   // Simulation

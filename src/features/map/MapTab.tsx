@@ -43,11 +43,13 @@ import { RevealModal } from '@/features/reveal/RevealModal';
 import { CreateNoteModal } from '@/features/notes/CreateNoteModal';
 import { ARNoteView } from '@/features/ar/ARNoteView';
 import { checkLayoverExit } from '@/lib/visaCheck';
+import { requestLocationPermission } from '@/lib/locationService';
 import type { ExtendedNote } from '@/lib/seedNotes';
 
 export const MapTab: React.FC = () => {
   const position = useAppStore((s) => s.position);
   const setPosition = useAppStore((s) => s.setPosition);
+  const locationPermission = useAppStore((s) => s.locationPermission);
   const profile = useAppStore((s) => s.profile);
   const notes = useAppStore((s) => s.notes);
   const soundEnabled = useAppStore((s) => s.soundEnabled);
@@ -167,6 +169,7 @@ export const MapTab: React.FC = () => {
   };
 
   const handleRecenterStreetView = () => {
+    requestLocationPermission();
     if (mapInstanceRef.current && position) {
       showStreetView(
         mapInstanceRef.current,
@@ -378,16 +381,26 @@ export const MapTab: React.FC = () => {
           )}
         </button>
 
-        {position?.accuracy && (
+        {locationPermission !== 'granted' ? (
+          <button
+            type="button"
+            onClick={() => requestLocationPermission()}
+            className="hud-chip flex items-center gap-1 text-[10px] px-2.5 py-1 shadow-sm font-bold bg-white text-[var(--hanko)] border border-[var(--hanko)]/40 cursor-pointer active:scale-95 transition-all"
+            title="Enable GPS Location"
+          >
+            <Crosshair size={12} weight="bold" color="var(--hanko)" />
+            <span>Enable GPS</span>
+          </button>
+        ) : position?.accuracy ? (
           <div
             className="hud-chip flex sm:hidden items-center gap-1 text-[10px] px-2 py-1 shadow-sm"
             style={{ background: '#FFFFFF', border: '1px solid #EADECA', color: 'var(--ink-500)' }}
             title="Real-time GPS Accuracy"
           >
-            <Crosshair size={11} weight="bold" color="var(--hanko)" />
-            <span>~{Math.round(position.accuracy)}m</span>
+            <Crosshair size={11} weight="bold" color="var(--mint)" />
+            <span>±{Math.round(position.accuracy)}m</span>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* ── MAP RECENTER BUTTON (Returns to Street View) ────────────── */}

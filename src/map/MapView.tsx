@@ -246,6 +246,8 @@ export const MapView: React.FC<MapViewProps> = ({
     syncAccuracySource(false);
   }, [position]);
 
+  const hasInitialCenteredRef = useRef(false);
+
   // Manage User Marker (Step 1.2: DOM marker created once, only setLngLat afterwards)
   useEffect(() => {
     const map = mapRef.current;
@@ -257,6 +259,11 @@ export const MapView: React.FC<MapViewProps> = ({
       userMarkerRef.current = marker;
     } else {
       userMarkerRef.current.setLngLat([position.lng, position.lat]);
+    }
+
+    if (!hasInitialCenteredRef.current && position) {
+      hasInitialCenteredRef.current = true;
+      map.easeTo({ center: [position.lng, position.lat], zoom: 15.5, duration: 700 });
     }
   }, [position]);
 

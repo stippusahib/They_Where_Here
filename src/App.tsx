@@ -15,6 +15,7 @@ import { resolveActiveTheme, applyTheme } from '@/ui/theme';
 import { Analytics } from '@vercel/analytics/react';
 import { fetchLiveNotes, subscribeToLiveNotes } from '@/lib/liveNotes';
 import { unlockAudio } from '@/lib/audio';
+import { initLocationWatcher, requestLocationPermission } from '@/lib/locationService';
 
 /**
  * Root application component.
@@ -25,6 +26,7 @@ export function App() {
   const [activeTab, setActiveTab] = useState<TabId>('map');
   const isSimulated = useAppStore((s) => s.isSimulated);
   const isOffline = useAppStore((s) => s.isOffline);
+  const locationPermission = useAppStore((s) => s.locationPermission);
   const hasSeenLayoverOnboarding = useAppStore((s) => s.hasSeenLayoverOnboarding);
   const setHasSeenLayoverOnboarding = useAppStore((s) => s.setHasSeenLayoverOnboarding);
   const themeMode = useAppStore((s) => s.themeMode);
@@ -43,6 +45,14 @@ export function App() {
     return () => {
       window.removeEventListener('pointerdown', handleGesture);
       window.removeEventListener('keydown', handleGesture);
+    };
+  }, []);
+
+  // Continuous real-time GPS tracking across the app
+  useEffect(() => {
+    const cleanupLocation = initLocationWatcher();
+    return () => {
+      cleanupLocation();
     };
   }, []);
 
@@ -74,6 +84,16 @@ export function App() {
           )}
 
           {/* Global banners */}
+          {locationPermission === 'denied' && !isSimulated && (
+            <Banner
+              variant="danger"
+              label="GPS disabled. Turn on device location."
+              action={{
+                label: 'Retry GPS',
+                onClick: () => requestLocationPermission(),
+              }}
+            />
+          )}
           {isSimulated && (
             <Banner variant="danger" label="SIMULATED GPS" />
           )}

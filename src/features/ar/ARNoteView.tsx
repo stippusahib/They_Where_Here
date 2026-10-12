@@ -34,6 +34,7 @@ import type { ExtendedNote } from '@/lib/seedNotes';
 import { APP_NAME, POKEMON_GO_TOUCH_RADIUS_METERS } from '@/contracts/types';
 import { AppLogo } from '@/ui/components/AppLogo';
 import { VoiceNotePlayer } from '@/ui/components/VoiceNotePlayer';
+import { requestLocationPermission } from '@/lib/locationService';
 
 interface ARNoteViewProps {
   onClose: () => void;
@@ -206,6 +207,12 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       }
     }
   };
+
+  // Automatically trigger orientation and high-accuracy GPS fix on AR mode entry
+  useEffect(() => {
+    requestOrientationPermission();
+    requestLocationPermission();
+  }, []);
 
   // ── 3. DEVICE ORIENTATION & COMPASS (Live Gyroscope Tracking) ──
   const filteredAlphaRef = useRef<number | null>(null);
@@ -1255,8 +1262,11 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
       {/* ── 8. TACTICAL FROSTED GLASS BOTTOM HUD DECK ──────────────── */}
       <footer className="relative z-30 p-3 pb-5 flex flex-col gap-2.5 pointer-events-auto max-w-sm mx-auto w-full">
         {/* Live GPS Telemetry Readout Pill */}
-        <div
-          className="self-center px-3 py-1 rounded-full text-[9px] font-mono font-bold flex items-center gap-2 shadow-xs backdrop-blur-md"
+        <button
+          type="button"
+          onClick={() => requestLocationPermission()}
+          className="self-center px-3 py-1 rounded-full text-[9px] font-mono font-bold flex items-center gap-2 shadow-xs backdrop-blur-md cursor-pointer active:scale-95 transition-transform"
+          title="Live GPS Telemetry (Tap to refresh GPS fix)"
           style={{
             background: 'rgba(255, 255, 255, 0.92)',
             border: '1px solid #14143A25',
@@ -1266,10 +1276,10 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
           <MapPin size={11} weight="fill" color="var(--hanko)" />
           <span>
             {position
-              ? `${position.lat.toFixed(4)}°N, ${position.lng.toFixed(4)}°W`
+              ? `${Math.abs(position.lat).toFixed(4)}°${position.lat >= 0 ? 'N' : 'S'}, ${Math.abs(position.lng).toFixed(4)}°${position.lng >= 0 ? 'E' : 'W'}`
               : 'GPS Acquiring...'}
           </span>
-          <span>• ALT 18m</span>
+          <span>• LIVE GPS</span>
           <span
             className={
               accuracyTier === 'high'
@@ -1281,7 +1291,7 @@ export const ARNoteView: React.FC<ARNoteViewProps> = ({
           >
             • ACC ±{Math.round(accuracyMeters)}m
           </span>
-        </div>
+        </button>
 
         {/* Audio Radar Preview if target note has audio and is in range */}
         {targetNote?.audio_url && !isMysteryLocked && isHere && (

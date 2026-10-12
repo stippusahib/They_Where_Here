@@ -6,7 +6,7 @@
  * Step 3: Seal animation & map pinning
  * ============================================================ */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   X,
   MapPin,
@@ -36,6 +36,7 @@ import { VoiceNotePlayer } from '@/ui/components/VoiceNotePlayer';
 import type { NoteRarity } from '@/contracts/types';
 import type { ExtendedNote } from '@/lib/seedNotes';
 import { publishNote } from '@/lib/liveNotes';
+import { requestLocationPermission } from '@/lib/locationService';
 
 const STAMPS = [
   { id: 1, icon: Coffee, label: 'Chai' },
@@ -72,6 +73,12 @@ export function CreateNoteModal() {
   const [voiceDuration, setVoiceDuration] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  useEffect(() => {
+    if (isCreateNoteOpen) {
+      requestLocationPermission();
+    }
+  }, [isCreateNoteOpen]);
 
   if (!isCreateNoteOpen) return null;
 

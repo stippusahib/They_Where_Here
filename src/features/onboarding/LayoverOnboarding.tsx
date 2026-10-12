@@ -19,6 +19,7 @@ import {
 } from '@phosphor-icons/react';
 import { useAppStore } from '@/state/store';
 import { layoverReachKm } from '@/lib/geo';
+import { requestLocationPermission } from '@/lib/locationService';
 import {
   checkLayoverExit,
   POPULAR_PASSPORTS,
@@ -92,11 +93,13 @@ export const LayoverOnboarding: React.FC<LayoverOnboardingProps> = ({ onComplete
   const progressPercent = (stepIndex / (LAYOVER_STEPS.length - 1)) * 100;
 
   const handleFinish = () => {
+    requestLocationPermission();
     onComplete();
   };
 
   const handleSkip = () => {
     setLayoverHours(4);
+    requestLocationPermission();
     onComplete();
   };
 
