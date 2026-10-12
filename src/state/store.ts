@@ -224,11 +224,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   setIsCreateNoteOpen: (isCreateNoteOpen) => set({ isCreateNoteOpen }),
 
   // Proximity
-  nearestNote: SEED_NOTES[0] ?? null,
+  nearestNote: null,
   setNearestNote: (nearestNote) => set({ nearestNote }),
-  proximityState: 'near',
+  proximityState: 'far',
   setProximityState: (proximityState) => set({ proximityState }),
-  distanceToNearest: 38,
+  distanceToNearest: null,
   setDistanceToNearest: (distanceToNearest) => set({ distanceToNearest }),
 
   // Sky & Theme

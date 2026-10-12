@@ -47,7 +47,7 @@ import { CreateNoteModal } from '@/features/notes/CreateNoteModal';
 import { ARNoteView } from '@/features/ar/ARNoteView';
 import { checkLayoverExit } from '@/lib/visaCheck';
 import { requestLocationPermission } from '@/lib/locationService';
-import { createLocalDemoNotes, type ExtendedNote } from '@/lib/seedNotes';
+import type { ExtendedNote } from '@/lib/seedNotes';
 import { VENUE_CENTER } from '@/config/venue';
 
 export const MapTab: React.FC = () => {
@@ -85,23 +85,10 @@ export const MapTab: React.FC = () => {
     [passportCountry, layoverCountry]
   );
 
-  // Supply local demo exploration notes around tester's GPS if far from venue (> 15km)
-  const effectiveNotes = useMemo(() => {
-    if (!position) return notes;
-    const hasNearby = notes.some(
-      (n) => haversineDistance(position.lat, position.lng, n.lat, n.lng) < 15000
-    );
-    if (!hasNearby) {
-      const localDemos = createLocalDemoNotes(position.lat, position.lng);
-      return [...localDemos, ...notes];
-    }
-    return notes;
-  }, [notes, position]);
-
   // Filter and sort notes by distance
   const notesWithDistance = useMemo(() => {
     if (!position) return [];
-    return effectiveNotes
+    return notes
       .map((note) => {
         const dist = haversineDistance(position.lat, position.lng, note.lat, note.lng);
         const bear = bearing(position.lat, position.lng, note.lat, note.lng);
@@ -114,7 +101,7 @@ export const MapTab: React.FC = () => {
         };
       })
       .sort((a, b) => a.distanceMeters - b.distanceMeters);
-  }, [effectiveNotes, position, reachMeters]);
+  }, [notes, position, reachMeters]);
 
   // Notes inside reach count
   const notesInReachCount = useMemo(() => {
@@ -199,20 +186,11 @@ export const MapTab: React.FC = () => {
 
   const handleFitAllNotes = () => {
     const map = mapInstanceRef.current;
-    if (!map || effectiveNotes.length === 0) return;
+    if (!map || notes.length === 0) return;
 
-    // Filter notes that are within 15km of the user or active cluster
-    const localNotes = position
-      ? effectiveNotes.filter(
-          (n) => haversineDistance(position.lat, position.lng, n.lat, n.lng) <= 15000
-        )
-      : [];
-
-    const targetNotes = localNotes.length > 0 ? localNotes : effectiveNotes;
-
-    const lngs = targetNotes.map((n) => n.lng);
-    const lats = targetNotes.map((n) => n.lat);
-    if (position && localNotes.length > 0) {
+    const lngs = notes.map((n) => n.lng);
+    const lats = notes.map((n) => n.lat);
+    if (position) {
       lngs.push(position.lng);
       lats.push(position.lat);
     }
@@ -255,7 +233,7 @@ export const MapTab: React.FC = () => {
         <div className="map-layer">
           <MapView
             position={position}
-            notes={effectiveNotes}
+            notes={notes}
             layoverHours={layoverHours}
             reachKm={reachKm}
             nearestNote={nearestNote}
