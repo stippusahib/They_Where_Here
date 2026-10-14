@@ -6,8 +6,8 @@ They Were Here is a location-locked note treasure hunt PWA built for the LAYOVER
 
 ## Team
 
-- **Alfie** — Architecture, map engine, reveal system, state management, deployment
-- **Tippu** — UI components, feature screens, utilities, documentation, testing
+- **Alfie** 
+- **Tippu** 
 
 ## AI Tools Disclosure
 
