@@ -142,5 +142,6 @@ npm run preview
 
 Built with care for **LAYOVER 2026** by:
 - **Alfie** 
-- **Tippu** 
+- **Tippu**
+ 
 Full third-party licenses, font open-source details (OFL 1.1), and OpenStreetMap attributions are documented in [CREDITS.md](CREDITS.md).
