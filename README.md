@@ -141,7 +141,6 @@ npm run preview
 ## Credits & License
 
 Built with care for **LAYOVER 2026** by:
-- **Alfie** — System architecture, map engine, AR projection math, PostGIS RPCs, deployment.
-- **Tippu** — UI/UX implementation, component design, haptics, documentation.
-
+- **Alfie** 
+- **Tippu** 
 Full third-party licenses, font open-source details (OFL 1.1), and OpenStreetMap attributions are documented in [CREDITS.md](CREDITS.md).
